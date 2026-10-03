@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Building Fund</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1c2230;--mute:#6b7385;--line:#e3e6ec;--brand:#1f5eff;--green:#157a43;--greenbg:#e1f5ea;--red:#b3261e;--redbg:#fde8e6;--amber:#9a6100;--amberbg:#fff1d6;--blue:#1b56c7;--bluebg:#e3edff;--grey:#eef0f4}
+@media all{:root[data-theme="dark"]{--bg:#12151c;--card:#1b1f29;--ink:#e8ebf2;--mute:#9099ad;--line:#2b3140;--brand:#6c93ff;--green:#5fd592;--greenbg:#16372a;--red:#ff8f87;--redbg:#40201d;--amber:#f3c068;--amberbg:#40320f;--blue:#8fb3ff;--bluebg:#1d2f55;--grey:#242a38}}
+:root{color-scheme:light}:root[data-theme="dark"]{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;position:sticky;top:0;z-index:5}
+header h1{font-size:18px;margin:0 12px 0 0}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:0;background:none;color:var(--mute);padding:8px 14px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+nav button.on{background:var(--bluebg);color:var(--blue)}
+main{max-width:1200px;margin:0 auto;padding:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card .k{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+.card .v{font-size:22px;font-weight:700;margin-top:2px}
+.card .s{color:var(--mute);font-size:12px;margin-top:2px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
+.panel h2{font-size:16px;margin:0 0 12px}
+.grid2{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+label{display:block;font-size:12px;font-weight:600;color:var(--mute);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}
+button.b{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px;border-radius:8px;font:inherit;font-weight:600;cursor:pointer}
+button.b:hover{background:var(--grey)}
+button.p{background:var(--brand);border-color:var(--brand);color:#fff}
+button.p:hover{background:var(--brand);filter:brightness(1.1)}
+button.sm{padding:4px 9px;font-size:13px}
+button.d{color:var(--red)}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.g{background:var(--greenbg);color:var(--green)}.r{background:var(--redbg);color:var(--red)}.a{background:var(--amberbg);color:var(--amber)}.bl{background:var(--bluebg);color:var(--blue)}.gr{background:var(--grey);color:var(--mute)}
+.total{background:var(--grey);border-radius:8px;padding:10px 12px;margin-top:12px;font-size:14px}
+.total b{font-size:18px}
+.mute{color:var(--mute)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tools select,.tools input{width:auto}
+.cell{text-align:center;font-size:12px;font-weight:700;border-radius:6px;padding:5px 2px;min-width:44px}
+table.m td,table.m th{padding:4px 3px;text-align:center}
+table.m td:first-child,table.m th:first-child{text-align:left;padding-left:8px}
+table.m td.tg:hover .cell{outline:2px solid var(--brand)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(720px,94vw);padding:18px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2230;color:#fff;padding:10px 16px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;z-index:20;max-width:90vw}
+#toast.show{opacity:1}
+.warn{background:var(--amberbg);color:var(--amber);padding:8px 12px;border-radius:8px;margin-bottom:14px;font-weight:600}
+td input.sh{width:90px;text-align:right}
+@media print{header,.tools,button{display:none!important}body{background:#fff}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Building Fund</h1>
+  <nav id="nav"></nav>
+  <button class="b sm" id="themeBtn" onclick="toggleTheme()" style="margin-left:auto" title="Switch light / dark"></button>
+</header>
+<main id="main"></main>
+<dialog id="dlg"></dialog>
+<div id="toast"></div>
+
+<script>
+/* ---------- theme (light by default) ---------- */
+function applyTheme(){let t='light';try{t=localStorage.getItem('buildingFund.theme')||'light'}catch(e){}
+  document.documentElement.dataset.theme=t;const b=document.getElementById('themeBtn');if(b)b.textContent=t==='dark'?'☀ Light':'🌙 Dark'}
+function toggleTheme(){let t='light';try{t=localStorage.getItem('buildingFund.theme')||'light';localStorage.setItem('buildingFund.theme',t==='dark'?'light':'dark')}catch(e){}applyTheme()}
+document.documentElement.dataset.theme='light';applyTheme();
+
+/* ---------- helpers (USD is the main currency) ---------- */
+const $=s=>document.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,10);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>Math.round(n||0).toLocaleString('en-US');
+const L=n=>fmt(n)+' LBP';
+const U=n=>{n=Math.round((n||0)*100)/100;return(n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})};
+const TINY=0.02; // balances smaller than 2 cents count as settled
+const today=()=>new Date().toISOString().slice(0,10);
+const ym=d=>d.slice(0,7);
+const curMonth=ym(today());
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const mLabel=m=>MN[+m.slice(5)-1]+' '+m.slice(0,4);
+function ymAdd(m,n){let y=+m.slice(0,4),k=+m.slice(5)-1+n;y+=Math.floor(k/12);k=((k%12)+12)%12;return y+'-'+String(k+1).padStart(2,'0')}
+// accepts 450000, 450,000, 450k, 1.5m
+function parseAmt(v){let s=String(v??'').trim().toLowerCase().replace(/,/g,'');if(!s)return 0;let m=1;
+  if(s.endsWith('k')){m=1e3;s=s.slice(0,-1)}else if(s.endsWith('m')){m=1e6;s=s.slice(0,-1)}
+  const n=parseFloat(s);return isNaN(n)?0:n*m}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),2800)}
+
+/* ---------- state ---------- */
+const KEY='buildingFund.v1';
+function defaults(){
+  const apts=[];
+  for(let f=1;f<=5;f++)for(const l of (f<5?'ABC':'AB'))apts.push({id:uid(),name:`F${f}-${l}`,tenant:'',phone:'',opening:0,start:'',pauses:[],ov:{}});
+  return{ver:2,settings:{building:'Building Fund',startMonth:'2025-01',rates:[{from:'2020-01-01',rate:89500}],fees:[{from:'2025-01',fee:5}],cashL:0,cashU:0,lastBackup:''},
+    apts,payments:[],expenses:[],projects:[],log:[]};
+}
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.apts)S=defaults();
+// Google connection details live only on this device (never inside the shared data)
+const SKEY='buildingFund.sync';let SY={};try{SY=JSON.parse(localStorage.getItem(SKEY))||{}}catch(e){}
+const saveSY=()=>{try{localStorage.setItem(SKEY,JSON.stringify(SY))}catch(e){}};
+if(S.settings&&S.settings.syncUrl){SY.url=SY.url||S.settings.syncUrl;SY.token=SY.token||S.settings.syncToken;SY.lastSync=SY.lastSync||S.settings.lastSync;['syncUrl','syncToken','lastSync','syncError'].forEach(k=>delete S.settings[k]);saveSY()}
+const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Could not save in this browser!')}};
+const save=()=>{S.updatedAt=new Date().toISOString();saveLocal();scheduleSync()};
+// every change is recorded here; entries are never edited or deleted
+function log(type,text){S.log.push({id:uid(),ts:new Date().toISOString(),type,text})}
+if(!S.log)S.log=[];
+if(!S.projects)S.projects=[];
+if(!S.ver){ // v1 stored fees/opening balances in LBP; USD is now the main currency
+  const r=S.settings.rate||89500;
+  S.settings.fees.forEach(f=>f.fee=Math.round(f.fee/r*100)/100);
+  S.apts.forEach(a=>a.opening=Math.round((a.opening||0)/r*100)/100);
+  S.ver=2;log('Migration',`Switched to USD as main currency (fees and opening balances converted at ${fmt(r)} LBP per $)`);saveLocal();
+}
+if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate;saveLocal()}
+S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{}});
+
+const aptById=id=>S.apts.find(a=>a.id===id);
+const projById=id=>S.projects.find(p=>p.id===id);
+// exchange-rate history: each row applies from its date until the next row; payments keep the rate they were saved with
+function rateFor(d){const r=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from));let v=r[0].rate;for(const x of r)if(x.from<=d)v=x.rate;return v}
+const curRate=()=>rateFor(today());
+const rateOf=p=>+p.rate||rateFor(p.date||today());
+function addRate(date,r){
+  const rows=S.settings.rates,last=[...rows].sort((a,b)=>a.from.localeCompare(b.from)).pop();
+  if(rateFor(date)===r||date<last.from)return false;
+  rows.push({from:date,rate:r});log('Rate added',`${fmt(r)} LBP per $ from ${date} (previous: ${fmt(last.rate)})`);toast(`New rate recorded: ${fmt(r)} from ${date}`);return true;
+}
+const eq=p=>(+p.usd||0)+(+p.lbp||0)/rateOf(p);   // value in USD
+const who=p=>aptById(p.aptId)?.name||'?';
+const amtTxt=p=>[p.usd?U(p.usd):'',p.lbp?fmt(p.lbp)+' LBP'+(p.usd?'':' @ '+fmt(rateOf(p))):''].filter(Boolean).join(' + ');
+const payTxt=p=>`${who(p)}: ${amtTxt(p)} = ${U(eq(p))} (dated ${p.date})${p.target&&projById(p.target)?' → project '+projById(p.target).name:''}${p.note?' – '+p.note:''}`;
+const expTxt=x=>`${x.cat}${x.payee?' / '+x.payee:''}: ${amtTxt(x)} = ${U(eq(x))} (dated ${x.date})${x.proj&&projById(x.proj)?' [project '+projById(x.proj).name+']':''}${x.note?' – '+x.note:''}`;
+
+/* ---------- Google sync (Apps Script web app = shared copy for all devices) ---------- */
+let syncTimer=null;
+function normalize(){
+  if(!S.log)S.log=[];if(!S.projects)S.projects=[];
+  if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate}
+  S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{}});
+}
+async function gcall(body){
+  try{const r=await fetch(SY.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({token:SY.token,...body})});return await r.json()}
+  catch(e){return null}
+}
+function scheduleSync(){if(!SY.url)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(true),4000)}
+async function syncNow(quiet,force){
+  if(!SY.url){if(!quiet)toast('Add the Google web app URL in Settings first');return}
+  const stamp=S.updatedAt||new Date().toISOString();S.updatedAt=stamp;saveLocal();
+  const j=await gcall({action:'save',base:force?'*':(SY.stamp||''),stamp,data:S});
+  if(!j)SY.error='Could not reach Google (offline?) – will retry on the next change';
+  else if(j.ok){SY.stamp=stamp;SY.lastSync=new Date().toISOString();SY.error='';if(!quiet)toast('Saved to Google')}
+  else if(j.conflict)SY.error='Another device saved newer data. Go to Settings → Load from Google before continuing.';
+  else SY.error=j.error||'rejected';
+  saveSY();if(!quiet&&SY.error)toast(SY.error);
+  if(tab==='settings'&&!document.activeElement?.matches('input'))render();else if(tab==='overview')render();
+}
+async function loadRemote(auto){
+  if(!SY.url)return;
+  const j=await gcall({action:'load'});
+  if(!j||!j.ok){if(!auto)toast('Could not load: '+(j&&j.error||'no connection'));return}
+  if(!j.data){if(!auto)toast('Nothing saved in Google yet — use "Overwrite Google with this device"');return}
+  if(j.stamp===SY.stamp&&S.updatedAt===SY.stamp){if(!auto)toast('Already up to date');return}
+  const dirty=S.updatedAt&&S.updatedAt!==SY.stamp;           // changes on this device not yet in Google
+  if(auto&&dirty){SY.error='Google has data from another device and this device has unsaved changes. Settings → Load from Google (or Overwrite Google).';saveSY();return}
+  if(!auto&&!confirm(`Replace the data on this device with the copy saved in Google (${new Date(j.savedAt).toLocaleString()})?`+(dirty?'\n\nWARNING: this device has changes that are not in Google and will be lost.':'')))return;
+  S=j.data;normalize();S.updatedAt=j.stamp;SY.stamp=j.stamp;SY.error='';SY.lastSync=new Date().toISOString();saveLocal();saveSY();render();toast('Loaded latest data from Google');
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadRemote(true)});
+
+/* ---------- calculations (all in USD) ---------- */
+function feeFor(m){const f=[...S.settings.fees].sort((a,b)=>a.from.localeCompare(b.from));
+  let r=f.length?f[0].fee:0;for(const x of f)if(x.from<=m)r=x.fee;return r}
+const inPause=(a,m)=>(a.pauses||[]).some(x=>x.from<=m&&(!x.to||m<=x.to));
+function dueFor(a,m){const o=a.ov&&a.ov[m];if(o!==undefined)return o?feeFor(m):0;return inPause(a,m)?0:feeFor(m)}
+function calc(a){
+  const start=a.start||S.settings.startMonth;
+  const paid=S.payments.filter(p=>p.aptId===a.id&&!p.target).reduce((s,p)=>s+eq(p),0);
+  const opening=+a.opening||0;
+  let credit=paid,openLeft=0;
+  if(opening>0){const x=Math.min(credit,opening);credit-=x;openLeft=opening-x}else credit+=-opening;
+  const months={};let due=opening;
+  for(let m=start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){
+    const d=dueFor(a,m),al=Math.min(credit,d);credit-=al;months[m]={due:d,alloc:al};
+    if(m<=curMonth)due+=d;
+  }
+  const balance=due-paid;
+  let paidThrough=null;
+  for(let m=start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){if(months[m].alloc>=months[m].due-TINY)paidThrough=m;else break}
+  if(openLeft>TINY)paidThrough=null;
+  const fee=feeFor(curMonth);
+  return{paid,opening,openLeft,months,balance,paidThrough,fee,start,pausedNow:dueFor(a,curMonth)===0,
+    monthsOwed:fee?balance/fee:0,advMonths:fee?Math.max(0,-balance)/fee:0};
+}
+function status(c){
+  if(c.balance>TINY)return{cls:'r',txt:`Owes ${(Math.round(c.monthsOwed*10)/10)} mo.`,key:'owing'};
+  if(c.balance<-TINY)return{cls:'bl',txt:`Advance ${(Math.round(c.advMonths*10)/10)} mo.`,key:'advance'};
+  if(c.pausedNow)return{cls:'gr',txt:'Paused',key:'paused'};
+  return{cls:'g',txt:'Paid up',key:'paid'};
+}
+const projPaid=(a,pr)=>S.payments.filter(p=>p.aptId===a.id&&p.target===pr.id).reduce((s,p)=>s+eq(p),0);
+const projShare=(a,pr)=>+pr.shares[a.id]||0;
+const projRem=(a,pr)=>projShare(a,pr)-projPaid(a,pr);
+const projDues=a=>S.projects.map(pr=>({pr,share:projShare(a,pr),rem:projRem(a,pr)})).filter(x=>x.share>0&&x.rem>TINY);
+function cash(){
+  const P=S.payments,E=S.expenses,s=S.settings;
+  const l=(+s.cashL||0)+P.reduce((t,p)=>t+(+p.lbp||0),0)-E.reduce((t,p)=>t+(+p.lbp||0),0);
+  const u=(+s.cashU||0)+P.reduce((t,p)=>t+(+p.usd||0),0)-E.reduce((t,p)=>t+(+p.usd||0),0);
+  return{l,u,total:u+l/curRate()};
+}
+
+/* ---------- navigation ---------- */
+const TABS=[['overview','Overview'],['payments','Payments'],['expenses','Expenses'],['projects','Projects'],['grid','Monthly grid'],['log','Activity log'],['settings','Settings']];
+let logType='',logQ='',logFrom='',logTo='';
+let tab='overview',filter='all',gridYear=+curMonth.slice(0,4),payEdit=null,expEdit=null,payPre=null,payTarget='',payFilter='',expFilter='';
+function go(t){tab=t;render()}
+function render(){
+  $('#title').textContent=S.settings.building||'Building Fund';
+  document.title=S.settings.building||'Building Fund';
+  $('#nav').innerHTML=TABS.map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="go('${k}')">${n}</button>`).join('');
+  $('#main').innerHTML=({overview:vOverview,payments:vPayments,expenses:vExpenses,projects:vProjects,grid:vGrid,log:vLog,settings:vSettings})[tab]();
+  if(tab==='payments')updPay();
+  if(tab==='expenses')updExp();
+}
+
+/* ---------- overview ---------- */
+function vOverview(){
+  const c=cash(),rows=S.apts.map(a=>({a,c:calc(a)}));
+  const owed=rows.reduce((s,r)=>s+Math.max(0,r.c.balance),0);
+  const adv=rows.reduce((s,r)=>s+Math.max(0,-r.c.balance),0);
+  const nOwing=rows.filter(r=>r.c.balance>TINY).length;
+  let projOwed=0;S.apts.forEach(a=>projDues(a).forEach(d=>projOwed+=d.rem));
+  const thisM=S.payments.filter(p=>ym(p.date)===curMonth).reduce((s,p)=>s+eq(p),0);
+  const bk=[S.settings.lastBackup,(SY.lastSync||'').slice(0,10)].sort().pop();const stale=!bk||(Date.now()-new Date(bk))/864e5>30;
+  const shown=rows.filter(r=>filter==='all'||(filter==='projects'?projDues(r.a).length>0:status(r.c).key===filter));
+  return`
+  ${SY.error?`<div class="warn" style="background:var(--redbg);color:var(--red)">☁ ${esc(SY.error)}</div>`:''}
+  ${stale?`<div class="warn">⚠ ${bk?'Last backup was on '+bk:'No backup yet'} — go to Settings → Download backup. Data lives only in this browser.</div>`:''}
+  <div class="cards">
+    <div class="card"><div class="k">Total cash ≈</div><div class="v">${U(c.total)}</div><div class="s">LBP counted at ${fmt(curRate())} per $</div></div>
+    <div class="card"><div class="k">Cash in USD</div><div class="v">${U(c.u)}</div></div>
+    <div class="card"><div class="k">Cash in LBP</div><div class="v">${L(c.l)}</div><div class="s">≈ ${U(c.l/curRate())}</div></div>
+    <div class="card"><div class="k">Collected in ${mLabel(curMonth)}</div><div class="v">${U(thisM)}</div></div>
+    <div class="card"><div class="k">Monthly fees owed</div><div class="v" style="color:var(--red)">${U(owed)}</div><div class="s">${nOwing} of ${S.apts.length} apartments</div></div>
+    <div class="card"><div class="k">Projects still to collect</div><div class="v" style="color:var(--red)">${U(projOwed)}</div></div>
+    <div class="card"><div class="k">Paid in advance</div><div class="v" style="color:var(--blue)">${U(adv)}</div></div>
+  </div>
+  <div class="panel">
+    <div class="tools">
+      <h2 style="margin:0;margin-right:auto">Apartments</h2>
+      <select onchange="filter=this.value;render()">
+        ${[['all','All'],['owing','Owing monthly fees'],['projects','Owing for a project'],['paid','Paid up'],['advance','Advance'],['paused','Paused']].map(([k,n])=>`<option value="${k}" ${filter===k?'selected':''}>${n}</option>`).join('')}
+      </select>
+      <button class="b" onclick="copySummary()">Copy WhatsApp summary</button>
+      <button class="b" onclick="window.print()">Print</button>
+    </div>
+    <div class="scroll"><table>
+      <tr><th>Apt</th><th>Tenant</th><th>Fees paid through</th><th class="n">Fees paid</th><th class="n">Balance</th><th>Status</th><th>Projects owed</th><th></th></tr>
+      ${shown.map(({a,c})=>{const s=status(c);return`<tr>
+        <td><b>${esc(a.name)}</b></td><td>${esc(a.tenant)||'<span class="mute">—</span>'}</td>
+        <td>${c.openLeft>TINY?'<span class="mute">before '+mLabel(c.start)+'</span>':c.paidThrough?mLabel(c.paidThrough):'<span class="mute">—</span>'}</td>
+        <td class="n">${U(c.paid)}</td>
+        <td class="n" style="color:var(${c.balance>TINY?'--red':c.balance<-TINY?'--blue':'--green'})">${c.balance>TINY?U(c.balance):c.balance<-TINY?'+'+U(-c.balance):'$0'}</td>
+        <td><span class="badge ${s.cls}">${s.txt}</span></td>
+        <td>${projDues(a).map(d=>`<span class="badge r" title="share ${U(d.share)}">${esc(d.pr.name)}: ${U(d.rem)}</span>`).join(' ')||'<span class="mute">—</span>'}</td>
+        <td style="white-space:nowrap"><button class="b sm p" onclick="payFor('${a.id}')">+ Payment</button> <button class="b sm" onclick="history_('${a.id}')">History</button></td></tr>`}).join('')}
+    </table></div>
+    <p class="mute" style="margin-bottom:0">Balance: red = owed, blue "+" = paid ahead. Monthly fee now: ${U(feeFor(curMonth))}. Paused apartments aren't charged the monthly fee (see Monthly grid).</p>
+  </div>`;
+}
+function copySummary(){
+  const lines=[];
+  S.apts.forEach(a=>{const c=calc(a),pd=projDues(a);if(c.balance<=TINY&&!pd.length)return;
+    const parts=[];if(c.balance>TINY)parts.push(`${U(c.balance)} fees (${Math.round(c.monthsOwed*10)/10} months)`);pd.forEach(d=>parts.push(`${U(d.rem)} ${d.pr.name}`));
+    lines.push(`• ${a.name}${a.tenant?' ('+a.tenant+')':''}: ${parts.join(' + ')}`)});
+  const t=`${S.settings.building} — status ${today()}\n`+(lines.length?'Outstanding:\n'+lines.join('\n'):'Everyone is paid up 🎉');
+  navigator.clipboard.writeText(t).then(()=>toast('Copied — paste into WhatsApp'),()=>toast('Copy failed'));
+}
+function payFor(id,t){payPre=id;payTarget=t||'';payEdit=null;go('payments')}
+
+/* ---------- payments ---------- */
+function aptOptions(sel){return S.apts.map(a=>`<option value="${a.id}" ${a.id===sel?'selected':''}>${esc(a.name)}${a.tenant?' — '+esc(a.tenant):''}</option>`).join('')}
+function vPayments(){
+  const e=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  const sel=e?e.aptId:payPre||S.apts[0].id,tgt=e?e.target||'':payTarget;
+  let list=[...S.payments].sort((a,b)=>b.date.localeCompare(a.date));
+  if(payFilter)list=list.filter(p=>p.aptId===payFilter);
+  const tot=list.reduce((s,p)=>s+eq(p),0);
+  return`<div class="grid2">
+  <div class="panel"><h2>${e?'Edit payment':'Record payment'}</h2>
+    <label>Apartment</label><select id="pApt" onchange="updPay()">${aptOptions(sel)}</select>
+    <label>Pay towards</label><select id="pTgt" onchange="updPay()"><option value="">Monthly fees</option>${S.projects.map(pr=>`<option value="${pr.id}" ${pr.id===tgt?'selected':''}>Project: ${esc(pr.name)}</option>`).join('')}</select>
+    <label>Date</label><input type="date" id="pDate" value="${e?e.date:today()}" onchange="if(!payEdit)$('#pR').value=rateFor(this.value||today());updPay()">
+    <div class="row"><div><label>Paid in USD ($)</label><input id="pU" inputmode="decimal" placeholder="e.g. 5" value="${e&&e.usd?e.usd:''}" oninput="updPay()"></div>
+    <div><label>Paid in LBP</label><input id="pL" inputmode="decimal" placeholder="e.g. 50k" value="${e&&e.lbp?e.lbp:''}" oninput="updPay()"></div></div>
+    <label>Exchange rate (LBP per $)</label><input id="pR" inputmode="decimal" value="${e?rateOf(e):curRate()}" oninput="updPay()">
+    <div class="row" style="margin-top:8px"><button class="b sm" id="fill1" onclick="fillL(1)">LBP to complete 1 month</button><button class="b sm" id="fill0" onclick="fillL(0)">LBP to clear balance</button></div>
+    <label>Note (optional)</label><input id="pN" placeholder="e.g. paid for Jan–Mar" value="${e?esc(e.note||''):''}">
+    <div class="total" id="pTot"></div>
+    <div class="row" style="margin-top:14px"><button class="b p" onclick="savePay()">${e?'Save changes':'Save payment'}</button>${e?'<button class="b" onclick="payEdit=null;render()">Cancel</button>':''}</div>
+    <p class="mute" style="font-size:12px">LBP is converted to USD at the rate above. Tip: you can type <b>450k</b> or <b>1.5m</b>.</p>
+  </div>
+  <div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">All payments</h2>
+    <select onchange="payFilter=this.value;render()"><option value="">All apartments</option>${aptOptions(payFilter)}</select></div>
+    <div class="scroll"><table><tr><th>Date</th><th>Apt</th><th>For</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Rate</th><th class="n">Total USD</th><th>Note</th><th></th></tr>
+    ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${U(eq(p))}</b></td><td>${esc(p.note||'')}</td>
+      <td style="white-space:nowrap"><button class="b sm" onclick="payEdit='${p.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delPay('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">No payments yet.</td></tr>'}
+    <tr><td colspan="6"><b>Total shown</b></td><td class="n"><b>${U(tot)}</b></td><td colspan="2"></td></tr></table></div>
+  </div></div>`;
+}
+function payVals(){const u=parseAmt($('#pU').value),l=parseAmt($('#pL').value),r=parseAmt($('#pR').value)||rateFor($('#pDate').value||today());return{u,l,r,t:u+l/r}}
+function updPay(){
+  if(!$('#pTot'))return;
+  const{u,l,r,t}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  const colr=b=>`var(${b>TINY?'--red':b<-TINY?'--blue':'--green'})`;
+  let after='';
+  if(a&&pr){
+    const rem=projRem(a,pr)-t+(old&&old.target===pr.id?eq(old):0);
+    after=`<div class="mute" style="font-size:13px;margin-top:4px">${esc(a.name)}'s share in “${esc(pr.name)}”: ${U(projShare(a,pr))} · after this: <b style="color:${colr(rem)}">${rem>TINY?'still owes '+U(rem):rem<-TINY?'overpaid '+U(-rem):'settled'}</b></div>`;
+  }else if(a){
+    const c=calc(a),bal=c.balance-t+(old&&!old.target?eq(old):0);
+    after=`<div class="mute" style="font-size:13px;margin-top:4px">Fee balance for ${esc(a.name)} after this: <b style="color:${colr(bal)}">${bal>TINY?'owes '+U(bal):bal<-TINY?'advance '+U(-bal):'settled'}</b></div>`;
+  }
+  const dt=$('#pDate').value||today(),onFile=rateFor(dt);
+  if(l>0&&!payEdit&&r!==onFile&&dt>=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from)).pop().from)after+=`<div style="font-size:13px;margin-top:4px;color:var(--amber)">Rate on file is ${fmt(onFile)}. ${fmt(r)} will be saved as the <b>new rate from ${dt}</b>; older payments keep their own rate.</div>`;
+  $('#pTot').innerHTML=`${U(u)} + ${fmt(l)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>${after}`;
+  $('#fill1').style.display=pr?'none':'';
+  $('#fill0').textContent=pr?'LBP to clear this share':'LBP to clear balance';
+}
+function fillL(one){
+  const{u,r}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  let target;
+  if(pr)target=projRem(a,pr)+(old&&old.target===pr.id?eq(old):0);
+  else{const c=calc(a);target=one?c.fee:c.balance+(old&&!old.target?eq(old):0)}
+  $('#pL').value=Math.max(0,Math.round((target-u)*r));updPay();
+}
+function savePay(){
+  const{u,l,r,t}=payVals();
+  if(t<=0)return toast('Enter an amount in USD and/or LBP');
+  const rec={aptId:$('#pApt').value,target:$('#pTgt').value,date:$('#pDate').value||today(),usd:u,lbp:l,rate:r,note:$('#pN').value.trim()};
+  if(payEdit){const p=S.payments.find(p=>p.id===payEdit),before=payTxt(p);Object.assign(p,rec);log('Payment edited',`${before}  →  ${payTxt(p)}`)}
+  else{const p={id:uid(),...rec};S.payments.push(p);log('Payment added',payTxt(p))}
+  if(l>0&&!payEdit)addRate(rec.date,r);
+  const a=aptById(rec.aptId);payEdit=null;payPre=rec.aptId;payTarget='';save();render();
+  toast(`Saved ${U(t)} for ${a.name}`);
+}
+function delPay(id){const p=S.payments.find(p=>p.id===id);if(confirm('Delete this payment?')){log('Payment deleted',payTxt(p));S.payments=S.payments.filter(p=>p.id!==id);save();render()}}
+
+/* ---------- expenses ---------- */
+function vExpenses(){
+  const e=expEdit?S.expenses.find(x=>x.id===expEdit):null;
+  const cats=[...new Set(['Electricity','Electrician','Maintenance','Elevator','Cleaning','Water','Generator','Other',...S.expenses.map(x=>x.cat)])];
+  let list=[...S.expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  if(expFilter)list=list.filter(x=>x.cat===expFilter);
+  const by={};S.expenses.forEach(x=>by[x.cat]=(by[x.cat]||0)+eq(x));
+  return`<div class="grid2">
+  <div class="panel"><h2>${e?'Edit expense':'Record expense'}</h2>
+    <label>Date</label><input type="date" id="eDate" value="${e?e.date:today()}">
+    <label>Category</label><input id="eCat" list="cats" placeholder="Electricity, Electrician…" value="${e?esc(e.cat):''}"><datalist id="cats">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>
+    <label>Related project (optional)</label><select id="eProj"><option value="">—</option>${S.projects.map(pr=>`<option value="${pr.id}" ${e&&e.proj===pr.id?'selected':''}>${esc(pr.name)}</option>`).join('')}</select>
+    <label>Paid to (supplier)</label><input id="ePayee" value="${e?esc(e.payee||''):''}">
+    <label>Description</label><input id="eNote" value="${e?esc(e.note||''):''}">
+    <div class="row"><div><label>Paid in USD ($)</label><input id="eU" inputmode="decimal" value="${e&&e.usd?e.usd:''}" oninput="updExp()"></div>
+    <div><label>Paid in LBP</label><input id="eL" inputmode="decimal" value="${e&&e.lbp?e.lbp:''}" oninput="updExp()"></div></div>
+    <label>Exchange rate</label><input id="eR" inputmode="decimal" value="${e?rateOf(e):curRate()}" oninput="updExp()">
+    <div class="total" id="eTot"></div>
+    <div class="row" style="margin-top:14px"><button class="b p" onclick="saveExp()">${e?'Save changes':'Save expense'}</button>${e?'<button class="b" onclick="expEdit=null;render()">Cancel</button>':''}</div>
+  </div>
+  <div>
+  <div class="panel"><h2>By category</h2><div style="display:flex;gap:8px;flex-wrap:wrap">
+    ${Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<span class="badge gr" style="font-size:13px">${esc(k)}: ${U(v)}</span>`).join('')||'<span class="mute">Nothing yet.</span>'}</div></div>
+  <div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">All expenses</h2>
+    <select onchange="expFilter=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${c===expFilter?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+    <div class="scroll"><table><tr><th>Date</th><th>Category</th><th>Paid to / note</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total USD</th><th></th></tr>
+    ${list.map(x=>`<tr><td>${x.date}</td><td>${esc(x.cat)}</td><td>${esc(x.payee||'')}${x.note?' <span class="mute">'+esc(x.note)+'</span>':''}${x.proj&&projById(x.proj)?' <span class="badge bl">'+esc(projById(x.proj).name)+'</span>':''}</td><td class="n">${x.usd?U(x.usd):''}</td><td class="n">${x.lbp?fmt(x.lbp):''}</td><td class="n"><b>${U(eq(x))}</b></td>
+      <td style="white-space:nowrap"><button class="b sm" onclick="expEdit='${x.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delExp('${x.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="7" class="mute">No expenses yet.</td></tr>'}
+    <tr><td colspan="5"><b>Total shown</b></td><td class="n"><b>${U(list.reduce((s,x)=>s+eq(x),0))}</b></td><td></td></tr></table></div></div></div></div>`;
+}
+function expVals(){const u=parseAmt($('#eU').value),l=parseAmt($('#eL').value),r=parseAmt($('#eR').value)||rateFor($('#eDate').value||today());return{u,l,r,t:u+l/r}}
+function updExp(){if(!$('#eTot'))return;const{u,l,r,t}=expVals();$('#eTot').innerHTML=`${U(u)} + ${fmt(l)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>`}
+function saveExp(){
+  const{u,l,r,t}=expVals(),cat=$('#eCat').value.trim();
+  if(t<=0)return toast('Enter an amount');if(!cat)return toast('Enter a category');
+  const rec={date:$('#eDate').value||today(),cat,proj:$('#eProj').value,payee:$('#ePayee').value.trim(),note:$('#eNote').value.trim(),usd:u,lbp:l,rate:r};
+  if(expEdit){const x=S.expenses.find(x=>x.id===expEdit),before=expTxt(x);Object.assign(x,rec);log('Expense edited',`${before}  →  ${expTxt(x)}`)}
+  else{const x={id:uid(),...rec};S.expenses.push(x);log('Expense added',expTxt(x))}
+  if(l>0&&!expEdit)addRate(rec.date,r);expEdit=null;save();render();toast('Expense saved');
+}
+function delExp(id){const x=S.expenses.find(x=>x.id===id);if(confirm('Delete this expense?')){log('Expense deleted',expTxt(x));S.expenses=S.expenses.filter(x=>x.id!==id);save();render()}}
+
+/* ---------- projects (special collections for major fixes) ---------- */
+const r2=n=>Math.round(n*100)/100;
+function vProjects(){
+  return`<div class="panel"><h2>New project / special collection</h2>
+    <p class="mute" style="margin-top:0">For a major fix when the safe doesn't have enough. Every apartment gets a share (in USD). Tenants pay it in USD and/or LBP using Payments → “Pay towards”. You can change any apartment's share afterwards (set it to 0 to exclude it).</p>
+    <div class="row"><div><label>Name</label><input id="jName" placeholder="e.g. Roof repair"></div><div><label>Date</label><input type="date" id="jDate" value="${today()}"></div>
+    <div><label>Total cost ($)</label><input id="jTotal" inputmode="decimal" placeholder="e.g. 700"></div>
+    <div><label>…or fixed amount per apartment ($)</label><input id="jPer" inputmode="decimal" placeholder="e.g. 50"></div></div>
+    <button class="b p" style="margin-top:12px" onclick="addProject()">Create — split equally among all ${S.apts.length} apartments</button></div>
+  ${S.projects.slice().reverse().map(projPanel).join('')}`;
+}
+function projPanel(pr){
+  const sum=S.apts.reduce((s,a)=>s+projShare(a,pr),0),col=S.apts.reduce((s,a)=>s+projPaid(a,pr),0);
+  const spent=S.expenses.filter(x=>x.proj===pr.id).reduce((s,x)=>s+eq(x),0);
+  return`<div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">${esc(pr.name)} <span class="mute" style="font-weight:400">· ${pr.date}</span></h2>
+    <button class="b sm" onclick="equalShares('${pr.id}',0)">Split equally among all</button>
+    <button class="b sm" onclick="equalShares('${pr.id}',1)">Split equally among those with a share</button>
+    <button class="b sm" onclick="copyProj('${pr.id}')">Copy request message</button>
+    <button class="b sm d" onclick="delProject('${pr.id}')">Delete</button></div>
+    <div class="cards" style="margin-bottom:12px">
+      <div class="card"><div class="k">Total cost</div><div class="v"><input value="${pr.total}" style="font-size:18px;font-weight:700;width:120px" onchange="setProjTotal('${pr.id}',this.value)"></div></div>
+      <div class="card"><div class="k">Shares requested</div><div class="v">${U(sum)}</div></div>
+      <div class="card"><div class="k">Collected</div><div class="v" style="color:var(--green)">${U(col)}</div></div>
+      <div class="card"><div class="k">Still to collect</div><div class="v" style="color:var(--red)">${U(Math.max(0,sum-col))}</div></div>
+      <div class="card"><div class="k">Spent so far</div><div class="v">${U(spent)}</div><div class="s">expenses linked to this project</div></div>
+    </div>
+    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th class="n">Share ($)</th><th class="n">Paid</th><th class="n">Remaining</th><th>Status</th><th></th></tr>
+    ${S.apts.map(a=>{const sh=projShare(a,pr),pd=projPaid(a,pr),rem=sh-pd;
+      const b=sh<=0&&pd<=0?'<span class="badge gr">not included</span>':rem>TINY?'<span class="badge r">owes</span>':rem<-TINY?'<span class="badge bl">overpaid</span>':'<span class="badge g">settled</span>';
+      return`<tr><td><b>${esc(a.name)}</b></td><td>${esc(a.tenant)}</td><td class="n"><input class="sh" value="${sh}" onchange="setShare('${pr.id}','${a.id}',this.value)"></td><td class="n">${U(pd)}</td><td class="n">${rem>TINY?U(rem):rem<-TINY?'+'+U(-rem):'–'}</td><td>${b}</td>
+      <td>${rem>TINY?`<button class="b sm p" onclick="payFor('${a.id}','${pr.id}')">+ Payment</button>`:''}</td></tr>`}).join('')}</table></div></div>`;
+}
+function addProject(){
+  const name=$('#jName').value.trim(),per=parseAmt($('#jPer').value);let total=parseAmt($('#jTotal').value);
+  if(!name)return toast('Enter a name');
+  if(!(total>0)&&!(per>0))return toast('Enter the total cost or an amount per apartment');
+  const n=S.apts.length,share=per>0?per:r2(total/n);if(!(total>0))total=r2(share*n);
+  const shares={};S.apts.forEach(a=>shares[a.id]=share);
+  S.projects.push({id:uid(),name,date:$('#jDate').value||today(),total,shares});
+  log('Project created',`${name}: total ${U(total)}, ${U(share)} per apartment × ${n}`);save();render();toast('Project created');
+}
+function equalShares(id,onlySel){
+  const pr=projById(id),ids=S.apts.filter(a=>!onlySel||projShare(a,pr)>0).map(a=>a.id);
+  if(!ids.length||!(pr.total>0))return toast('Set a total cost first');
+  const sh=r2(pr.total/ids.length);S.apts.forEach(a=>pr.shares[a.id]=ids.includes(a.id)?sh:0);
+  log('Project shares reset',`${pr.name}: ${U(sh)} each for ${ids.length} apartments`);save();render();
+}
+function setShare(pid,aid,v){const pr=projById(pid),a=aptById(aid),o=projShare(a,pr),n=Math.max(0,parseAmt(v));if(o===n)return;pr.shares[aid]=n;log('Project share changed',`${pr.name} · ${a.name}: ${U(o)} → ${U(n)}`);save();render()}
+function setProjTotal(pid,v){const pr=projById(pid),o=pr.total,n=parseAmt(v);if(!(n>0)||o===n)return;pr.total=n;log('Project changed',`${pr.name}: total cost ${U(o)} → ${U(n)}`);save();render()}
+function delProject(id){
+  const pr=projById(id);
+  if(S.payments.some(p=>p.target===id))return toast('This project has payments. Delete or edit those payments first.');
+  if(!confirm(`Delete project “${pr.name}”?`))return;
+  S.expenses.forEach(x=>{if(x.proj===id)x.proj=''});S.projects=S.projects.filter(p=>p.id!==id);log('Project deleted',pr.name);save();render();
+}
+function copyProj(id){
+  const pr=projById(id),lines=S.apts.filter(a=>projRem(a,pr)>TINY).map(a=>`• ${a.name}${a.tenant?' ('+a.tenant+')':''}: ${U(projRem(a,pr))}`);
+  const t=`${S.settings.building} — ${pr.name}\nTotal cost: ${U(pr.total)}\n`+(lines.length?'Still to pay (USD, or LBP at the day\'s rate):\n'+lines.join('\n'):'Everyone has paid their share 🎉');
+  navigator.clipboard.writeText(t).then(()=>toast('Copied — paste into WhatsApp'),()=>toast('Copy failed'));
+}
+
+/* ---------- monthly grid ---------- */
+const cellClick=(a,c,m,h)=>c.months[m]?h.replace('<td>',`<td class="tg" onclick="toggleMonth('${a.id}','${m}')" style="cursor:pointer" title="Click to switch this month between charged / not charged">`):h;
+function vGrid(){
+  const months=Array.from({length:12},(_,i)=>`${gridYear}-${String(i+1).padStart(2,'0')}`);
+  const rows=S.apts.map(a=>({a,c:calc(a)}));
+  return vPause()+`<div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">Month by month</h2>
+    <button class="b" onclick="gridYear--;render()">◀</button><b>${gridYear}</b><button class="b" onclick="gridYear++;render()">▶</button></div>
+    <div class="scroll"><table class="m"><tr><th>Apt</th><th>Before</th>${months.map(m=>`<th>${MN[+m.slice(5)-1]}</th>`).join('')}</tr>
+    ${rows.map(({a,c})=>`<tr><td><b>${esc(a.name)}</b><div class="mute" style="font-size:11px">${esc(a.tenant)}</div></td>
+      <td>${c.opening>0?(c.openLeft>TINY?`<div class="cell r">${U(c.openLeft)}</div>`:'<div class="cell g">✓</div>'):'<div class="cell gr">–</div>'}</td>
+      ${months.map(m=>cellClick(a,c,m,(()=>{const x=c.months[m];
+        if(!x)return'<td><div class="cell gr">–</div></td>';
+        if(x.due===0)return'<td><div class="cell gr">paused</div></td>';
+        const full=x.alloc>=x.due-TINY,part=x.alloc>TINY&&!full;
+        if(m>curMonth)return`<td><div class="cell ${full?'bl':part?'a':'gr'}" title="Advance">${full?'adv':part?U(x.alloc):''}</div></td>`;
+        if(full)return`<td><div class="cell g">✓</div></td>`;
+        if(part)return`<td><div class="cell a" title="Short by ${U(x.due-x.alloc)}">${U(x.alloc)}</div></td>`;
+        return`<td><div class="cell ${m===curMonth?'a':'r'}">${m===curMonth?'due':'✗'}</div></td>`})())).join('')}</tr>`).join('')}
+    </table></div>
+    <p class="mute" style="margin-bottom:0"><b>Click any month</b> to switch it between charged and not charged for that apartment. ✓ paid · amber = partial / current month due · red ✗ = unpaid · blue adv = paid ahead · grey paused = no fee asked. Payments are applied to the oldest charged month first. Hover a partial cell to see what's missing.</p></div>`;
+}
+function vPause(){
+  const list=S.apts.flatMap((a,i)=>a.pauses.map((p,j)=>({a,p,i,j})));
+  return`<div class="panel"><h2>Pause monthly fees</h2>
+    <p class="mute" style="margin-top:0">For an apartment that isn't being charged (empty, or only asked to pay for major fixes). Paused months add nothing to the balance. Project shares are separate and still apply.</p>
+    <div class="row"><div><label>Apartment</label><select id="zApt">${aptOptions()}</select></div>
+    <div><label>From (YYYY-MM)</label><input id="zFrom" value="${curMonth}"></div>
+    <div><label>Until (empty = until further notice)</label><input id="zTo" placeholder="YYYY-MM"></div>
+    <div><label>Reason</label><input id="zWhy" placeholder="optional"></div></div>
+    <button class="b p" style="margin-top:12px" onclick="addPause()">Pause fees</button>
+    ${list.length?`<table style="margin-top:12px"><tr><th>Apt</th><th>Paused from</th><th>Until</th><th>Reason</th><th></th></tr>
+    ${list.map(({a,p,i,j})=>`<tr><td><b>${esc(a.name)}</b> ${esc(a.tenant)}</td><td>${mLabel(p.from)}</td><td>${p.to?mLabel(p.to):'<span class="badge a">until further notice</span>'}</td><td>${esc(p.reason||'')}</td>
+      <td style="white-space:nowrap">${!p.to||p.to>=curMonth?`<button class="b sm" onclick="endPause(${i},${j})">Resume fees now</button> `:''}<button class="b sm d" onclick="delPause(${i},${j})">✕</button></td></tr>`).join('')}</table>`:''}
+  </div>`;
+}
+function addPause(){
+  const i=S.apts.findIndex(a=>a.id===$('#zApt').value),a=S.apts[i],from=$('#zFrom').value.trim(),to=$('#zTo').value.trim(),reason=$('#zWhy').value.trim(),re=/^\d{4}-(0[1-9]|1[0-2])$/;
+  if(!re.test(from)||(to&&!re.test(to)))return toast('Use month format YYYY-MM');
+  if(to&&to<from)return toast('"Until" is before "From"');
+  a.pauses.push({from,to,reason});log('Pause added',`${a.name}: no monthly fee from ${mLabel(from)} ${to?'to '+mLabel(to):'until further notice'}${reason?' – '+reason:''}`);save();render();
+}
+function endPause(i,j){const a=S.apts[i],p=a.pauses[j],e=ymAdd(curMonth,-1);
+  if(e<p.from)a.pauses.splice(j,1);else p.to=e;
+  log('Pause ended',`${a.name}: monthly fees resume from ${mLabel(curMonth)}`);save();render()}
+function delPause(i,j){const a=S.apts[i],p=a.pauses[j];log('Pause deleted',`${a.name}: pause from ${mLabel(p.from)} removed`);a.pauses.splice(j,1);save();render()}
+function toggleMonth(id,m){
+  const a=aptById(id),on=dueFor(a,m)>0,target=!on,def=!inPause(a,m);
+  if(target===def)delete a.ov[m];else a.ov[m]=target?1:0;
+  log(target?'Month charged':'Month not charged',`${a.name} · ${mLabel(m)}: ${target?'fee '+U(feeFor(m))+' now applies':'no fee asked'}`);save();render();
+}
+
+/* ---------- history dialog ---------- */
+function history_(id){
+  const a=aptById(id),c=calc(a),ps=S.payments.filter(p=>p.aptId===id).sort((x,y)=>y.date.localeCompare(x.date));
+  const s=status(c),pd=projDues(a);
+  $('#dlg').innerHTML=`<div class="tools"><h2 style="margin:0;margin-right:auto">${esc(a.name)} ${a.tenant?'— '+esc(a.tenant):''}</h2><button class="b" onclick="$('#dlg').close()">Close</button></div>
+  <p><span class="badge ${s.cls}">${s.txt}</span> &nbsp; Fee balance: <b>${c.balance>TINY?'owes '+U(c.balance):c.balance<-TINY?'advance '+U(-c.balance):'settled'}</b> &nbsp; Fees paid through: <b>${c.paidThrough?mLabel(c.paidThrough):'—'}</b></p>
+  ${pd.length?`<p>Project dues: ${pd.map(d=>`<span class="badge r">${esc(d.pr.name)}: ${U(d.rem)}</span>`).join(' ')}</p>`:''}
+  <p class="mute">Tracked from ${mLabel(c.start)}${c.opening?' · opening balance '+U(c.opening):''} · total paid in fees ${U(c.paid)}</p>
+  <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total USD</th><th>For / note</th></tr>
+  ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n"><b>${U(eq(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
+  $('#dlg').showModal();
+}
+
+/* ---------- activity log ---------- */
+function vLog(){
+  const types=[...new Set(S.log.map(l=>l.type))].sort();
+  const q=logQ.toLowerCase();
+  const rows=[...S.log].reverse().filter(l=>(!logType||l.type===logType)&&(!logFrom||l.ts.slice(0,10)>=logFrom)&&(!logTo||l.ts.slice(0,10)<=logTo)&&(!q||(l.type+' '+l.text).toLowerCase().includes(q)));
+  const col=t=>/deleted|Reset|not charged/.test(t)?'r':/edited|changed|Restore|ended|reset|Migration/.test(t)?'a':/added|created|Month charged/.test(t)?'g':'gr';
+  let lastDay='';
+  return`<div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">Activity log</h2>
+    <input type="date" value="${logFrom}" onchange="logFrom=this.value;render()" title="From"><input type="date" value="${logTo}" onchange="logTo=this.value;render()" title="To">
+    <select onchange="logType=this.value;render()"><option value="">All actions</option>${types.map(t=>`<option ${t===logType?'selected':''}>${esc(t)}</option>`).join('')}</select>
+    <input placeholder="Search…" value="${esc(logQ)}" onchange="logQ=this.value;render()">
+    <button class="b" onclick="exportLog()">Export CSV</button></div>
+    <div class="scroll"><table><tr><th>When</th><th>Action</th><th>Details</th></tr>
+    ${rows.map(l=>{const d=new Date(l.ts),day=d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+      const head=day!==lastDay?`<tr><td colspan="3" style="background:var(--grey);font-weight:700">${day}</td></tr>`:'';lastDay=day;
+      return head+`<tr><td style="white-space:nowrap">${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</td><td><span class="badge ${col(l.type)}">${esc(l.type)}</span></td><td>${esc(l.text)}</td></tr>`}).join('')||'<tr><td colspan="3" class="mute">No activity recorded yet.</td></tr>'}
+    </table></div>
+    <p class="mute" style="margin-bottom:0">${S.log.length} entries. Every add, edit, delete and settings change is recorded with date and time. Entries can't be removed from here.</p></div>`;
+}
+function exportLog(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  download('activity-log.csv','﻿'+[['Date','Time','Action','Details'],...S.log.map(l=>{const d=new Date(l.ts);return[d.toLocaleDateString('en-CA'),d.toLocaleTimeString('en-GB'),l.type,l.text]})].map(r=>r.map(q).join(',')).join('\n'),'text/csv')}
+
+/* ---------- settings ---------- */
+function vSettings(){
+  const s=S.settings;
+  return`
+  <div class="panel"><h2>General</h2><div class="row">
+    <div><label>Building name</label><input value="${esc(s.building)}" onchange="setS('building',this.value,'Building name');render()"></div>
+    <div><label>Tracking starts (YYYY-MM)</label><input value="${s.startMonth}" onchange="setStart(this)"></div>
+    <div><label>Current rate (LBP per $)</label><input value="${fmt(curRate())}" disabled title="Change it in Exchange rate history below"></div></div>
+    <div class="row"><div><label>Opening cash in USD (before you started using this app)</label><input value="${s.cashU}" onchange="setS('cashU',parseAmt(this.value),'Opening cash USD')"></div>
+    <div><label>Opening cash in LBP</label><input value="${s.cashL}" onchange="setS('cashL',parseAmt(this.value),'Opening cash LBP')"></div></div>
+  </div>
+  <div class="panel"><h2>Exchange rate history (LBP per $)</h2>
+    <p class="mute" style="margin-top:0">When the rate changes, <b>add a new row</b> — don't edit the old one. Each payment keeps the rate it was recorded with, so old balances never change. The newest row is used for the cash totals and as the default in new payments. (Entering a payment with a different rate adds a row automatically.)</p>
+    <table><tr><th>Effective from</th><th>Rate</th><th></th></tr>
+    ${[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from)).map(r=>{const i=S.settings.rates.indexOf(r);return`<tr><td><input type="date" value="${r.from}" onchange="setRate(${i},'from',this.value)"></td><td><input value="${r.rate}" onchange="setRate(${i},'rate',parseAmt(this.value))"></td><td>${S.settings.rates.length>1?`<button class="b sm d" onclick="delRate(${i})">✕</button>`:''}</td></tr>`}).join('')}
+    <tr><td><input type="date" id="nrDate" value="${today()}"></td><td><input id="nrRate" inputmode="decimal" placeholder="new rate, e.g. 90000"></td><td><button class="b sm p" onclick="newRateRow()">Add rate</button></td></tr></table>
+  </div>
+  <div class="panel"><h2>Monthly fee (USD)</h2>
+    <p class="mute" style="margin-top:0">If the fee changes, add a new row with the month it starts. Earlier months keep the old fee.</p>
+    <table><tr><th>Effective from (YYYY-MM)</th><th>Fee per apartment ($)</th><th></th></tr>
+    ${S.settings.fees.map((f,i)=>`<tr><td><input value="${f.from}" onchange="setFee(${i},'from',this.value)"></td><td><input value="${f.fee}" onchange="setFee(${i},'fee',parseAmt(this.value))"></td><td>${S.settings.fees.length>1?`<button class="b sm d" onclick="log('Fee changed','Removed fee row: from '+S.settings.fees[${i}].from+' = '+S.settings.fees[${i}].fee);S.settings.fees.splice(${i},1);save();render()">✕</button>`:''}</td></tr>`).join('')}</table>
+    <button class="b" style="margin-top:10px" onclick="S.settings.fees.push({from:curMonth,fee:feeFor(curMonth)});log('Fee changed','Added fee row from '+curMonth);save();render()">+ Add fee change</button>
+  </div>
+  <div class="panel"><h2>Apartments</h2>
+    <p class="mute" style="margin-top:0"><b>Opening balance ($)</b> = what the tenant owed <i>before</i> the tracking start month: <b>positive = owes</b> (e.g. 12), <b>negative = paid in advance</b> (e.g. -15 covers their first months). Leave "Start month" empty unless the tenant moved in later. To stop charging an apartment, use <b>Monthly grid → Pause monthly fees</b>.</p>
+    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th>Phone</th><th>Opening balance ($)</th><th>Start month</th></tr>
+    ${S.apts.map((a,i)=>`<tr><td><input style="width:90px" value="${esc(a.name)}" onchange="setApt(${i},'name',this.value)"></td>
+      <td><input value="${esc(a.tenant)}" onchange="setApt(${i},'tenant',this.value)"></td>
+      <td><input value="${esc(a.phone)}" onchange="setApt(${i},'phone',this.value)"></td>
+      <td><input value="${a.opening||0}" onchange="setApt(${i},'opening',parseAmt(this.value))"></td>
+      <td><input style="width:100px" placeholder="default" value="${a.start||''}" onchange="setApt(${i},'start',this.value.trim())"></td></tr>`).join('')}</table></div>
+  </div>
+  <div class="panel"><h2>Google sync (shared copy for all your devices)</h2>
+    <p class="mute" style="margin-top:0">After every change (a few seconds later) the data is saved to Google: a Google Sheet (Apartments, Payments, Expenses, Projects, Activity log) plus a JSON file in Drive. Open the app on another device, enter the same URL and token below, press <b>Load from Google</b> — and it stays up to date from then on. Setup: <b>google-backup-setup.md</b>. These two fields are stored only on this device.</p>
+    <div class="row"><div><label>Web app URL</label><input placeholder="https://script.google.com/macros/s/…/exec" value="${esc(SY.url||'')}" onchange="SY.url=this.value.trim();saveSY()"></div>
+    <div><label>Secret token (same as in the script)</label><input type="password" value="${esc(SY.token||'')}" onchange="SY.token=this.value;saveSY()"></div></div>
+    <div class="tools" style="margin-top:12px"><button class="b p" onclick="loadRemote()">Load from Google</button><button class="b" onclick="syncNow(false)">Save to Google now</button>
+    <button class="b d" onclick="if(confirm('Overwrite the copy in Google with the data on THIS device?'))syncNow(false,true)">Overwrite Google with this device</button></div>
+    <div class="mute">Last sync: ${SY.lastSync?new Date(SY.lastSync).toLocaleString():'never'}</div>${SY.error?`<div class="badge r" style="margin-top:6px;white-space:normal">${esc(SY.error)}</div>`:''}
+  </div>
+  <div class="panel"><h2>Backup</h2>
+    <p class="mute" style="margin-top:0">All data is stored in this browser on this computer. Download a backup regularly and keep it somewhere safe (iCloud, USB, email to yourself).</p>
+    <div class="tools"><button class="b p" onclick="backup()">Download backup</button>
+    <button class="b" onclick="$('#restore').click()">Restore from backup…</button><input type="file" id="restore" accept=".json" hidden onchange="restore(this.files[0])">
+    <button class="b" onclick="exportCSV()">Export payments (CSV)</button>
+    <button class="b d" onclick="resetAll()">Erase everything</button></div>
+    <div class="mute">Last backup: ${s.lastBackup||'never'}</div>
+  </div>`;
+}
+function newRateRow(){const d=$('#nrDate').value||today(),r=parseAmt($('#nrRate').value);if(!(r>0))return toast('Enter the new rate');
+  S.settings.rates=S.settings.rates.filter(x=>x.from!==d);const prev=rateFor(d);S.settings.rates.push({from:d,rate:r});log('Rate added',`${fmt(r)} LBP per $ from ${d} (previous: ${fmt(prev)})`);save();render()}
+function setRate(i,k,v){const x=S.settings.rates[i],o=x[k];if(!v||o===v)return;x[k]=v;log('Rate changed',`Rate row ${k}: ${o} → ${v}`);save();render()}
+function delRate(i){const x=S.settings.rates[i];log('Rate deleted',`${fmt(x.rate)} from ${x.from}`);S.settings.rates.splice(i,1);save();render()}
+function setStart(el){if(!/^\d{4}-\d{2}$/.test(el.value))return toast('Use format YYYY-MM');setS('startMonth',el.value,'Tracking start')}
+function setS(k,v,label){const o=S.settings[k];if(o===v)return;S.settings[k]=v;log('Settings changed',`${label||k}: ${o} → ${v}`);save()}
+function setFee(i,k,v){const f=S.settings.fees[i],o=f[k];if(o===v)return;f[k]=v;log('Fee changed',`Fee row ${i+1} ${k}: ${o} → ${v}`);save()}
+function setApt(i,k,v){const a=S.apts[i],o=a[k];if(o===v)return;a[k]=v;log('Apartment changed',`${a.name} · ${k}: ${o||'—'} → ${v||'—'}`);save()}
+function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+function backup(){S.settings.lastBackup=today();log('Backup','Downloaded backup file');save();download(`building-fund-backup-${today()}.json`,JSON.stringify(S,null,1),'application/json');render()}
+function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.apts||!d.settings)throw 0;
+  if(!confirm('Replace ALL current data with this backup?'))return;S=d;normalize();
+  log('Restore','Data restored from backup file');save();render();toast('Backup restored')}catch(e){toast('Not a valid backup file')}};r.readAsText(f)}
+function exportCSV(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const rows=[['Date','Apartment','Tenant','For','USD','LBP','Rate','Total USD','Note'],...S.payments.map(p=>{const a=aptById(p.aptId);return[p.date,a?.name,a?.tenant,p.target?projById(p.target)?.name:'Monthly fees',p.usd,p.lbp,p.rate,r2(eq(p)),p.note]})];
+  download('payments.csv','﻿'+rows.map(r=>r.map(q).join(',')).join('\n'),'text/csv')}
+function resetAll(){if(confirm('Erase ALL data? This cannot be undone (download a backup first!).')&&confirm('Really erase everything?')){S=defaults();log('Reset','All data erased');save();render()}}
+
+render();
+loadRemote(true);
+</script>
+</body>
+</html>
