@@ -84,7 +84,9 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmt=n=>Math.round(n||0).toLocaleString('en-US');
 const L=n=>fmt(n)+' LBP';
 const U=n=>{n=Math.round((n||0)*100)/100;return(n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2})};
-const TINY=0.02; // balances smaller than 2 cents count as settled
+const TINY=0.02; // USD balances smaller than 2 cents count as settled
+const TL=500;    // LBP balances under 500 count as settled
+const LU=n=>`${fmt(n)} LBP<div class="mute" style="font-size:11px">≈ ${U(n/curRate())}</div>`;
 const today=()=>new Date().toISOString().slice(0,10);
 const ym=d=>d.slice(0,7);
 const curMonth=ym(today());
@@ -101,8 +103,8 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');cl
 const KEY='buildingFund.v1';
 function defaults(){
   const apts=[];
-  for(let f=1;f<=5;f++)for(const l of (f<5?'ABC':'AB'))apts.push({id:uid(),name:`F${f}-${l}`,tenant:'',phone:'',opening:0,start:'',pauses:[],ov:{}});
-  return{ver:2,settings:{building:'Building Fund',startMonth:'2025-01',rates:[{from:'2020-01-01',rate:89500}],fees:[{from:'2025-01',fee:5}],cashL:0,cashU:0,lastBackup:''},
+  for(let f=1;f<=5;f++)for(const l of (f<5?'ABC':'AB'))apts.push({id:uid(),name:`F${f}-${l}`,tenant:'',phone:'',opening:0,openUsd:0,openLbp:0,openRate:'',start:'',pauses:[],ov:{}});
+  return{ver:3,settings:{building:'Building Fund',startMonth:'2025-01',rates:[{from:'2020-01-01',rate:89500}],fees:[{from:'2025-01',fee:500000}],cashL:0,cashU:0,lastBackup:''},
     apts,payments:[],expenses:[],projects:[],log:[]};
 }
 let S;
@@ -116,34 +118,26 @@ const saveLocal=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){to
 const save=()=>{S.updatedAt=new Date().toISOString();saveLocal();scheduleSync()};
 // every change is recorded here; entries are never edited or deleted
 function log(type,text){S.log.push({id:uid(),ts:new Date().toISOString(),type,text})}
-if(!S.log)S.log=[];
-if(!S.projects)S.projects=[];
-if(!S.ver){ // v1 stored fees/opening balances in LBP; USD is now the main currency
-  const r=S.settings.rate||89500;
-  S.settings.fees.forEach(f=>f.fee=Math.round(f.fee/r*100)/100);
-  S.apts.forEach(a=>a.opening=Math.round((a.opening||0)/r*100)/100);
-  S.ver=2;log('Migration',`Switched to USD as main currency (fees and opening balances converted at ${fmt(r)} LBP per $)`);saveLocal();
-}
-if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate;saveLocal()}
-S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{};if(a.openUsd===undefined){a.openUsd=+a.opening||0;a.openLbp=0;a.openRate=''}});
+normalize();
 
 const aptById=id=>S.apts.find(a=>a.id===id);
 const projById=id=>S.projects.find(p=>p.id===id);
 // exchange-rate history: each row applies from its date until the next row; payments keep the rate they were saved with
 function rateFor(d){const r=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from));let v=r[0].rate;for(const x of r)if(x.from<=d)v=x.rate;return v}
 const curRate=()=>rateFor(today());
-// opening balance = USD part + LBP part (converted at the typed rate, or the rate on file for the tracking start month)
-const openingOf=a=>(+a.openUsd||0)+(+a.openLbp||0)/(+a.openRate||rateFor((a.start||S.settings.startMonth)+'-01'));
+// opening balance in LBP = LBP part + USD part × (typed rate, or the rate on file for the tracking start month)
+function openingOf(a){return(+a.openLbp||0)+(+a.openUsd||0)*(+a.openRate||rateFor((a.start||S.settings.startMonth)+'-01'))}
 const rateOf=p=>+p.rate||rateFor(p.date||today());
 function addRate(date,r){
   const rows=S.settings.rates,last=[...rows].sort((a,b)=>a.from.localeCompare(b.from)).pop();
   if(rateFor(date)===r||date<last.from)return false;
   rows.push({from:date,rate:r});log('Rate added',`${fmt(r)} LBP per $ from ${date} (previous: ${fmt(last.rate)})`);toast(`New rate recorded: ${fmt(r)} from ${date}`);return true;
 }
-const eq=p=>(+p.usd||0)+(+p.lbp||0)/rateOf(p);   // value in USD
+const eq=p=>(+p.usd||0)+(+p.lbp||0)/rateOf(p);   // value in USD (cash, expenses, projects)
+const eqL=p=>(+p.lbp||0)+(+p.usd||0)*rateOf(p);   // value in LBP (monthly fees are calculated in LBP, so LBP payments count exactly)
 const who=p=>aptById(p.aptId)?.name||'?';
 const amtTxt=p=>[p.usd?U(p.usd):'',p.lbp?fmt(p.lbp)+' LBP'+(p.usd?'':' @ '+fmt(rateOf(p))):''].filter(Boolean).join(' + ');
-const payTxt=p=>`${who(p)}: ${amtTxt(p)} = ${U(eq(p))} (dated ${p.date})${p.target&&projById(p.target)?' → project '+projById(p.target).name:''}${p.note?' – '+p.note:''}`;
+const payTxt=p=>`${who(p)}: ${amtTxt(p)} = ${L(eqL(p))} ≈ ${U(eq(p))} (dated ${p.date})${p.target&&projById(p.target)?' → project '+projById(p.target).name:''}${p.note?' – '+p.note:''}`;
 const expTxt=x=>`${x.cat}${x.payee?' / '+x.payee:''}: ${amtTxt(x)} = ${U(eq(x))} (dated ${x.date})${x.proj&&projById(x.proj)?' [project '+projById(x.proj).name+']':''}${x.note?' – '+x.note:''}`;
 
 /* ---------- Google sync (Apps Script web app = shared copy for all devices) ---------- */
@@ -151,7 +145,14 @@ let syncTimer=null;
 function normalize(){
   if(!S.log)S.log=[];if(!S.projects)S.projects=[];
   if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate}
+  if(!S.ver){S.apts.forEach(a=>{a.openLbp=+a.opening||0;a.openUsd=0;a.openRate=''});S.ver=3;log('Migration','Monthly fees and balances are now calculated in LBP')}
+  else if(S.ver<3){
+    const r0=[...S.settings.rates].sort((x,y)=>x.from.localeCompare(y.from))[0].rate;
+    S.settings.fees.forEach(f=>f.fee=Math.round(f.fee*r0/5000)*5000);S.ver=3;
+    log('Migration',`Monthly fee is now in LBP (converted at ${fmt(r0)} per $). Please check Settings → Monthly fee.`);
+  }
   S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{};if(a.openUsd===undefined){a.openUsd=+a.opening||0;a.openLbp=0;a.openRate=''}});
+  S.apts.forEach(a=>a.opening=openingOf(a));
 }
 async function gcall(body){
   try{const r=await fetch(SY.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({token:SY.token,...body})});return await r.json()}
@@ -189,7 +190,7 @@ const inPause=(a,m)=>(a.pauses||[]).some(x=>x.from<=m&&(!x.to||m<=x.to));
 function dueFor(a,m){const o=a.ov&&a.ov[m];if(o!==undefined)return o?feeFor(m):0;return inPause(a,m)?0:feeFor(m)}
 function calc(a){
   const start=a.start||S.settings.startMonth;
-  const paid=S.payments.filter(p=>p.aptId===a.id&&!p.target).reduce((s,p)=>s+eq(p),0);
+  const paid=S.payments.filter(p=>p.aptId===a.id&&!p.target).reduce((s,p)=>s+eqL(p),0);   // LBP
   const opening=openingOf(a);
   let credit=paid,openLeft=0;
   if(opening>0){const x=Math.min(credit,opening);credit-=x;openLeft=opening-x}else credit+=-opening;
@@ -200,15 +201,15 @@ function calc(a){
   }
   const balance=due-paid;
   let paidThrough=null;
-  for(let m=start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){if(months[m].alloc>=months[m].due-TINY)paidThrough=m;else break}
-  if(openLeft>TINY)paidThrough=null;
+  for(let m=start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){if(months[m].alloc>=months[m].due-TL)paidThrough=m;else break}
+  if(openLeft>TL)paidThrough=null;
   const fee=feeFor(curMonth);
   return{paid,opening,openLeft,months,balance,paidThrough,fee,start,pausedNow:dueFor(a,curMonth)===0,
     monthsOwed:fee?balance/fee:0,advMonths:fee?Math.max(0,-balance)/fee:0};
 }
 function status(c){
-  if(c.balance>TINY)return{cls:'r',txt:`Owes ${(Math.round(c.monthsOwed*10)/10)} mo.`,key:'owing'};
-  if(c.balance<-TINY)return{cls:'bl',txt:`Advance ${(Math.round(c.advMonths*10)/10)} mo.`,key:'advance'};
+  if(c.balance>TL)return{cls:'r',txt:`Owes ${(Math.round(c.monthsOwed*10)/10)} mo.`,key:'owing'};
+  if(c.balance<-TL)return{cls:'bl',txt:`Advance ${(Math.round(c.advMonths*10)/10)} mo.`,key:'advance'};
   if(c.pausedNow)return{cls:'gr',txt:'Paused',key:'paused'};
   return{cls:'g',txt:'Paid up',key:'paid'};
 }
@@ -242,7 +243,7 @@ function vOverview(){
   const c=cash(),rows=S.apts.map(a=>({a,c:calc(a)}));
   const owed=rows.reduce((s,r)=>s+Math.max(0,r.c.balance),0);
   const adv=rows.reduce((s,r)=>s+Math.max(0,-r.c.balance),0);
-  const nOwing=rows.filter(r=>r.c.balance>TINY).length;
+  const nOwing=rows.filter(r=>r.c.balance>TL).length;
   let projOwed=0;S.apts.forEach(a=>projDues(a).forEach(d=>projOwed+=d.rem));
   const thisM=S.payments.filter(p=>ym(p.date)===curMonth).reduce((s,p)=>s+eq(p),0);
   const bk=[S.settings.lastBackup,(SY.lastSync||'').slice(0,10)].sort().pop();const stale=!bk||(Date.now()-new Date(bk))/864e5>30;
@@ -255,9 +256,9 @@ function vOverview(){
     <div class="card"><div class="k">Cash in USD</div><div class="v">${U(c.u)}</div></div>
     <div class="card"><div class="k">Cash in LBP</div><div class="v">${L(c.l)}</div><div class="s">≈ ${U(c.l/curRate())}</div></div>
     <div class="card"><div class="k">Collected in ${mLabel(curMonth)}</div><div class="v">${U(thisM)}</div></div>
-    <div class="card"><div class="k">Monthly fees owed</div><div class="v" style="color:var(--red)">${U(owed)}</div><div class="s">${nOwing} of ${S.apts.length} apartments</div></div>
+    <div class="card"><div class="k">Monthly fees owed</div><div class="v" style="color:var(--red)">${L(owed)}</div><div class="s">≈ ${U(owed/curRate())} · ${nOwing} of ${S.apts.length} apartments</div></div>
     <div class="card"><div class="k">Projects still to collect</div><div class="v" style="color:var(--red)">${U(projOwed)}</div></div>
-    <div class="card"><div class="k">Paid in advance</div><div class="v" style="color:var(--blue)">${U(adv)}</div></div>
+    <div class="card"><div class="k">Paid in advance</div><div class="v" style="color:var(--blue)">${L(adv)}</div><div class="s">≈ ${U(adv/curRate())}</div></div>
   </div>
   <div class="panel">
     <div class="tools">
@@ -272,20 +273,20 @@ function vOverview(){
       <tr><th>Apt</th><th>Tenant</th><th>Fees paid through</th><th class="n">Fees paid</th><th class="n">Balance</th><th>Status</th><th>Projects owed</th><th></th></tr>
       ${shown.map(({a,c})=>{const s=status(c);return`<tr>
         <td><b>${esc(a.name)}</b></td><td>${esc(a.tenant)||'<span class="mute">—</span>'}</td>
-        <td>${c.openLeft>TINY?'<span class="mute">before '+mLabel(c.start)+'</span>':c.paidThrough?mLabel(c.paidThrough):'<span class="mute">—</span>'}</td>
-        <td class="n">${U(c.paid)}</td>
-        <td class="n" style="color:var(${c.balance>TINY?'--red':c.balance<-TINY?'--blue':'--green'})">${c.balance>TINY?U(c.balance):c.balance<-TINY?'+'+U(-c.balance):'$0'}</td>
+        <td>${c.openLeft>TL?'<span class="mute">before '+mLabel(c.start)+'</span>':c.paidThrough?mLabel(c.paidThrough):'<span class="mute">—</span>'}</td>
+        <td class="n">${LU(c.paid)}</td>
+        <td class="n" style="color:var(${c.balance>TL?'--red':c.balance<-TL?'--blue':'--green'})">${c.balance>TL?LU(c.balance):c.balance<-TL?'+'+LU(-c.balance):'0'}</td>
         <td><span class="badge ${s.cls}">${s.txt}</span></td>
         <td>${projDues(a).map(d=>`<span class="badge r" title="share ${U(d.share)}">${esc(d.pr.name)}: ${U(d.rem)}</span>`).join(' ')||'<span class="mute">—</span>'}</td>
         <td style="white-space:nowrap"><button class="b sm p" onclick="payFor('${a.id}')">+ Payment</button> <button class="b sm" onclick="history_('${a.id}')">History</button></td></tr>`}).join('')}
     </table></div>
-    <p class="mute" style="margin-bottom:0">Balance: red = owed, blue "+" = paid ahead. Monthly fee now: ${U(feeFor(curMonth))}. Paused apartments aren't charged the monthly fee (see Monthly grid).</p>
+    <p class="mute" style="margin-bottom:0">Monthly fees are calculated in LBP (fee now: ${L(feeFor(curMonth))} ≈ ${U(feeFor(curMonth)/curRate())}); payments in USD count at the rate used that day. Balance: red = owed, blue "+" = paid ahead. Paused apartments aren't charged (see Monthly grid).</p>
   </div>`;
 }
 function copySummary(){
   const lines=[];
-  S.apts.forEach(a=>{const c=calc(a),pd=projDues(a);if(c.balance<=TINY&&!pd.length)return;
-    const parts=[];if(c.balance>TINY)parts.push(`${U(c.balance)} fees (${Math.round(c.monthsOwed*10)/10} months)`);pd.forEach(d=>parts.push(`${U(d.rem)} ${d.pr.name}`));
+  S.apts.forEach(a=>{const c=calc(a),pd=projDues(a);if(c.balance<=TL&&!pd.length)return;
+    const parts=[];if(c.balance>TL)parts.push(`${fmt(c.balance)} LBP fees (${Math.round(c.monthsOwed*10)/10} months)`);pd.forEach(d=>parts.push(`${U(d.rem)} ${d.pr.name}`));
     lines.push(`• ${a.name}${a.tenant?' ('+a.tenant+')':''}: ${parts.join(' + ')}`)});
   const t=`${S.settings.building} — status ${today()}\n`+(lines.length?'Outstanding:\n'+lines.join('\n'):'Everyone is paid up 🎉');
   navigator.clipboard.writeText(t).then(()=>toast('Copied — paste into WhatsApp'),()=>toast('Copy failed'));
@@ -299,7 +300,7 @@ function vPayments(){
   const sel=e?e.aptId:payPre||S.apts[0].id,tgt=e?e.target||'':payTarget;
   let list=[...S.payments].sort((a,b)=>b.date.localeCompare(a.date));
   if(payFilter)list=list.filter(p=>p.aptId===payFilter);
-  const tot=list.reduce((s,p)=>s+eq(p),0);
+  const tot=list.reduce((s,p)=>s+eq(p),0),totL=list.reduce((s,p)=>s+eqL(p),0);
   return`<div class="grid2">
   <div class="panel"><h2>${e?'Edit payment':'Record payment'}</h2>
     <label>Apartment</label><select id="pApt" onchange="updPay()">${aptOptions(sel)}</select>
@@ -316,47 +317,46 @@ function vPayments(){
   </div>
   <div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">All payments</h2>
     <select onchange="payFilter=this.value;render()"><option value="">All apartments</option>${aptOptions(payFilter)}</select></div>
-    <div class="scroll"><table><tr><th>Date</th><th>Apt</th><th>For</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Rate</th><th class="n">Total USD</th><th>Note</th><th></th></tr>
-    ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${U(eq(p))}</b></td><td>${esc(p.note||'')}</td>
+    <div class="scroll"><table><tr><th>Date</th><th>Apt</th><th>For</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Rate</th><th class="n">Total</th><th>Note</th><th></th></tr>
+    ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${esc(p.note||'')}</td>
       <td style="white-space:nowrap"><button class="b sm" onclick="payEdit='${p.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delPay('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">No payments yet.</td></tr>'}
-    <tr><td colspan="6"><b>Total shown</b></td><td class="n"><b>${U(tot)}</b></td><td colspan="2"></td></tr></table></div>
+    <tr><td colspan="6"><b>Total shown</b></td><td class="n"><b>${fmt(totL)}</b> LBP<div class="mute" style="font-size:11px">${U(tot)}</div></td><td colspan="2"></td></tr></table></div>
   </div></div>`;
 }
-function payVals(){const u=parseAmt($('#pU').value),l=parseAmt($('#pL').value),r=parseAmt($('#pR').value)||rateFor($('#pDate').value||today());return{u,l,r,t:u+l/r}}
+function payVals(){const u=parseAmt($('#pU').value),l=parseAmt($('#pL').value),r=parseAmt($('#pR').value)||rateFor($('#pDate').value||today());return{u,l,r,t:u+l/r,tl:l+u*r}}
 function updPay(){
   if(!$('#pTot'))return;
-  const{u,l,r,t}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
-  const colr=b=>`var(${b>TINY?'--red':b<-TINY?'--blue':'--green'})`;
+  const{u,l,r,t,tl}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  const colr=b=>`var(${b>0?'--red':b<0?'--blue':'--green'})`;
   let after='';
   if(a&&pr){
     const rem=projRem(a,pr)-t+(old&&old.target===pr.id?eq(old):0);
-    after=`<div class="mute" style="font-size:13px;margin-top:4px">${esc(a.name)}'s share in “${esc(pr.name)}”: ${U(projShare(a,pr))} · after this: <b style="color:${colr(rem)}">${rem>TINY?'still owes '+U(rem):rem<-TINY?'overpaid '+U(-rem):'settled'}</b></div>`;
+    after=`<div class="mute" style="font-size:13px;margin-top:4px">${esc(a.name)}'s share in “${esc(pr.name)}”: ${U(projShare(a,pr))} · after this: <b style="color:${colr(Math.abs(rem)<TINY?0:rem)}">${rem>TINY?'still owes '+U(rem):rem<-TINY?'overpaid '+U(-rem):'settled'}</b></div>`;
   }else if(a){
-    const c=calc(a),bal=c.balance-t+(old&&!old.target?eq(old):0);
-    after=`<div class="mute" style="font-size:13px;margin-top:4px">Fee balance for ${esc(a.name)} after this: <b style="color:${colr(bal)}">${bal>TINY?'owes '+U(bal):bal<-TINY?'advance '+U(-bal):'settled'}</b></div>`;
+    const c=calc(a),bal=c.balance-tl+(old&&!old.target?eqL(old):0);
+    after=`<div class="mute" style="font-size:13px;margin-top:4px">Fee balance for ${esc(a.name)} after this: <b style="color:${colr(Math.abs(bal)<TL?0:bal)}">${bal>TL?'owes '+L(bal):bal<-TL?'advance '+L(-bal):'settled'}</b></div>`;
   }
   const dt=$('#pDate').value||today(),onFile=rateFor(dt);
   if(l>0&&!payEdit&&r!==onFile&&dt>=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from)).pop().from)after+=`<div style="font-size:13px;margin-top:4px;color:var(--amber)">Rate on file is ${fmt(onFile)}. ${fmt(r)} will be saved as the <b>new rate from ${dt}</b>; older payments keep their own rate.</div>`;
-  $('#pTot').innerHTML=`${U(u)} + ${fmt(l)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>${after}`;
+  $('#pTot').innerHTML=pr?`${U(u)} + ${fmt(l)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>${after}`:`${U(u)} × ${fmt(r)} + ${fmt(l)} LBP = <b>${L(tl)}</b> <span class="mute">≈ ${U(t)}</span>${after}`;
   $('#fill1').style.display=pr?'none':'';
   $('#fill0').textContent=pr?'LBP to clear this share':'LBP to clear balance';
 }
 function fillL(one){
   const{u,r}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
-  let target;
-  if(pr)target=projRem(a,pr)+(old&&old.target===pr.id?eq(old):0);
-  else{const c=calc(a);target=one?c.fee:c.balance+(old&&!old.target?eq(old):0)}
-  $('#pL').value=Math.max(0,Math.round((target-u)*r));updPay();
+  if(pr){const rem=projRem(a,pr)+(old&&old.target===pr.id?eq(old):0);$('#pL').value=Math.max(0,Math.round((rem-u)*r))}
+  else{const c=calc(a),target=one?c.fee:c.balance+(old&&!old.target?eqL(old):0);$('#pL').value=Math.max(0,Math.round(target-u*r))}
+  updPay();
 }
 function savePay(){
-  const{u,l,r,t}=payVals();
+  const{u,l,r,t,tl}=payVals();
   if(t<=0)return toast('Enter an amount in USD and/or LBP');
   const rec={aptId:$('#pApt').value,target:$('#pTgt').value,date:$('#pDate').value||today(),usd:u,lbp:l,rate:r,note:$('#pN').value.trim()};
   if(payEdit){const p=S.payments.find(p=>p.id===payEdit),before=payTxt(p);Object.assign(p,rec);log('Payment edited',`${before}  →  ${payTxt(p)}`)}
   else{const p={id:uid(),...rec};S.payments.push(p);log('Payment added',payTxt(p))}
   if(l>0&&!payEdit)addRate(rec.date,r);
   const a=aptById(rec.aptId);payEdit=null;payPre=rec.aptId;payTarget='';save();render();
-  toast(`Saved ${U(t)} for ${a.name}`);
+  toast(`Saved ${rec.target?U(t):L(tl)} for ${a.name}`);
 }
 function delPay(id){const p=S.payments.find(p=>p.id===id);if(confirm('Delete this payment?')){log('Payment deleted',payTxt(p));S.payments=S.payments.filter(p=>p.id!==id);save();render()}}
 
@@ -406,11 +406,14 @@ function delExp(id){const x=S.expenses.find(x=>x.id===id);if(confirm('Delete thi
 const r2=n=>Math.round(n*100)/100;
 function vProjects(){
   return`<div class="panel"><h2>New project / special collection</h2>
-    <p class="mute" style="margin-top:0">For a major fix when the safe doesn't have enough. Every apartment gets a share (in USD). Tenants pay it in USD and/or LBP using Payments → “Pay towards”. You can change any apartment's share afterwards (set it to 0 to exclude it).</p>
+    <p class="mute" style="margin-top:0">For a major fix or one-off cost (also when only some apartments have to pay, or it was due in the past — set the date and tick only who owes). Each ticked apartment gets a share in USD. Tenants pay it in USD and/or LBP using Payments → “Pay towards”. You can change any share afterwards.</p>
     <div class="row"><div><label>Name</label><input id="jName" placeholder="e.g. Roof repair"></div><div><label>Date</label><input type="date" id="jDate" value="${today()}"></div>
     <div><label>Total cost ($)</label><input id="jTotal" inputmode="decimal" placeholder="e.g. 700"></div>
     <div><label>…or fixed amount per apartment ($)</label><input id="jPer" inputmode="decimal" placeholder="e.g. 50"></div></div>
-    <button class="b p" style="margin-top:12px" onclick="addProject()">Create — split equally among all ${S.apts.length} apartments</button></div>
+    <label>Who has to pay? (untick apartments that are not part of it)</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:6px">${S.apts.map(a=>`<label style="display:inline-flex;align-items:center;gap:5px;margin:0;font-weight:500;color:var(--ink)"><input type="checkbox" class="jApt" value="${a.id}" checked style="width:auto"> ${esc(a.name)}${a.tenant?' ('+esc(a.tenant)+')':''}</label>`).join('')}</div>
+    <div class="tools"><button class="b sm" onclick="document.querySelectorAll('.jApt').forEach(c=>c.checked=true)">Select all</button><button class="b sm" onclick="document.querySelectorAll('.jApt').forEach(c=>c.checked=false)">Select none</button></div>
+    <button class="b p" style="margin-top:6px" onclick="addProject()">Create project</button></div>
   ${S.projects.slice().reverse().map(projPanel).join('')}`;
 }
 function projPanel(pr){
@@ -436,12 +439,14 @@ function projPanel(pr){
 }
 function addProject(){
   const name=$('#jName').value.trim(),per=parseAmt($('#jPer').value);let total=parseAmt($('#jTotal').value);
+  const ids=[...document.querySelectorAll('.jApt:checked')].map(c=>c.value);
   if(!name)return toast('Enter a name');
+  if(!ids.length)return toast('Select at least one apartment');
   if(!(total>0)&&!(per>0))return toast('Enter the total cost or an amount per apartment');
-  const n=S.apts.length,share=per>0?per:r2(total/n);if(!(total>0))total=r2(share*n);
-  const shares={};S.apts.forEach(a=>shares[a.id]=share);
+  const n=ids.length,share=per>0?per:r2(total/n);if(!(total>0))total=r2(share*n);
+  const shares={};S.apts.forEach(a=>shares[a.id]=ids.includes(a.id)?share:0);
   S.projects.push({id:uid(),name,date:$('#jDate').value||today(),total,shares});
-  log('Project created',`${name}: total ${U(total)}, ${U(share)} per apartment × ${n}`);save();render();toast('Project created');
+  log('Project created',`${name} (${$('#jDate').value||today()}): total ${U(total)}, ${U(share)} each × ${n}: ${ids.map(i=>aptById(i).name).join(', ')}`);save();render();toast('Project created');
 }
 function equalShares(id,onlySel){
   const pr=projById(id),ids=S.apts.filter(a=>!onlySel||projShare(a,pr)>0).map(a=>a.id);
@@ -472,14 +477,14 @@ function vGrid(){
     <button class="b" onclick="gridYear--;render()">◀</button><b>${gridYear}</b><button class="b" onclick="gridYear++;render()">▶</button></div>
     <div class="scroll"><table class="m"><tr><th>Apt</th><th>Before</th>${months.map(m=>`<th>${MN[+m.slice(5)-1]}</th>`).join('')}</tr>
     ${rows.map(({a,c})=>`<tr><td><b>${esc(a.name)}</b><div class="mute" style="font-size:11px">${esc(a.tenant)}</div></td>
-      <td>${c.opening>0?(c.openLeft>TINY?`<div class="cell r">${U(c.openLeft)}</div>`:'<div class="cell g">✓</div>'):'<div class="cell gr">–</div>'}</td>
+      <td>${c.opening>0?(c.openLeft>TL?`<div class="cell r">${(Math.round(c.openLeft/1000)+'k')}</div>`:'<div class="cell g">✓</div>'):'<div class="cell gr">–</div>'}</td>
       ${months.map(m=>cellClick(a,c,m,(()=>{const x=c.months[m];
         if(!x)return'<td><div class="cell gr">–</div></td>';
         if(x.due===0)return'<td><div class="cell gr">paused</div></td>';
-        const full=x.alloc>=x.due-TINY,part=x.alloc>TINY&&!full;
-        if(m>curMonth)return`<td><div class="cell ${full?'bl':part?'a':'gr'}" title="Advance">${full?'adv':part?U(x.alloc):''}</div></td>`;
+        const full=x.alloc>=x.due-TL,part=x.alloc>TL&&!full;
+        if(m>curMonth)return`<td><div class="cell ${full?'bl':part?'a':'gr'}" title="Advance">${full?'adv':part?(Math.round(x.alloc/1000)+'k'):''}</div></td>`;
         if(full)return`<td><div class="cell g">✓</div></td>`;
-        if(part)return`<td><div class="cell a" title="Short by ${U(x.due-x.alloc)}">${U(x.alloc)}</div></td>`;
+        if(part)return`<td><div class="cell a" title="Short by ${L(x.due-x.alloc)}">${(Math.round(x.alloc/1000)+'k')}</div></td>`;
         return`<td><div class="cell ${m===curMonth?'a':'r'}">${m===curMonth?'due':'✗'}</div></td>`})())).join('')}</tr>`).join('')}
     </table></div>
     <p class="mute" style="margin-bottom:0"><b>Click any month</b> to switch it between charged and not charged for that apartment. ✓ paid · amber = partial / current month due · red ✗ = unpaid · blue adv = paid ahead · grey paused = no fee asked. Payments are applied to the oldest charged month first. Hover a partial cell to see what's missing.</p></div>`;
@@ -511,7 +516,7 @@ function delPause(i,j){const a=S.apts[i],p=a.pauses[j];log('Pause deleted',`${a.
 function toggleMonth(id,m){
   const a=aptById(id),on=dueFor(a,m)>0,target=!on,def=!inPause(a,m);
   if(target===def)delete a.ov[m];else a.ov[m]=target?1:0;
-  log(target?'Month charged':'Month not charged',`${a.name} · ${mLabel(m)}: ${target?'fee '+U(feeFor(m))+' now applies':'no fee asked'}`);save();render();
+  log(target?'Month charged':'Month not charged',`${a.name} · ${mLabel(m)}: ${target?'fee '+L(feeFor(m))+' now applies':'no fee asked'}`);save();render();
 }
 
 /* ---------- history dialog ---------- */
@@ -519,19 +524,19 @@ function history_(id){
   const a=aptById(id),c=calc(a),ps=S.payments.filter(p=>p.aptId===id).sort((x,y)=>y.date.localeCompare(x.date));
   const s=status(c),pd=projDues(a);
   $('#dlg').innerHTML=`<div class="tools"><h2 style="margin:0;margin-right:auto">${esc(a.name)} ${a.tenant?'— '+esc(a.tenant):''}</h2><button class="b" onclick="$('#dlg').close()">Close</button></div>
-  <p><span class="badge ${s.cls}">${s.txt}</span> &nbsp; Fee balance: <b>${c.balance>TINY?'owes '+U(c.balance):c.balance<-TINY?'advance '+U(-c.balance):'settled'}</b> &nbsp; Fees paid through: <b>${c.paidThrough?mLabel(c.paidThrough):'—'}</b></p>
+  <p><span class="badge ${s.cls}">${s.txt}</span> &nbsp; Fee balance: <b>${c.balance>TL?'owes '+L(c.balance):c.balance<-TL?'advance '+L(-c.balance):'settled'}</b> <span class="mute">(≈ ${U(Math.abs(c.balance)/curRate())})</span> &nbsp; Fees paid through: <b>${c.paidThrough?mLabel(c.paidThrough):'—'}</b></p>
   ${pd.length?`<p>Project dues: ${pd.map(d=>`<span class="badge r">${esc(d.pr.name)}: ${U(d.rem)}</span>`).join(' ')}</p>`:''}
-  <p class="mute">Tracked from ${mLabel(c.start)}${c.opening?' · opening balance '+U(c.opening):''} · total paid in fees ${U(c.paid)}</p>
+  <p class="mute">Tracked from ${mLabel(c.start)}${c.opening?' · opening balance '+L(c.opening):''} · total paid in fees ${L(c.paid)}</p>
   <h3 style="margin:14px 0 6px;font-size:14px">Month by month</h3>
-  <div class="scroll" style="max-height:240px"><table><tr><th>Month</th><th class="n">Fee</th><th class="n">Covered by payments</th><th>Result</th></tr>
-  ${(()=>{let h='';for(let m=c.start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){const x=c.months[m];if(m>curMonth&&x.alloc<=TINY)break;
-    const short=x.due-x.alloc,res=x.due===0?'<span class="badge gr">not charged</span>':x.alloc>=x.due-TINY?(m>curMonth?'<span class="badge bl">paid in advance</span>':'<span class="badge g">paid</span>'):x.alloc>TINY?`<span class="badge a">short by ${U(short)} — carried to next payment</span>`:(m===curMonth?'<span class="badge a">due</span>':'<span class="badge r">unpaid</span>');
-    h+=`<tr><td>${mLabel(m)}</td><td class="n">${U(x.due)}</td><td class="n">${U(x.alloc)}</td><td>${res}</td></tr>`}return h})()}
+  <div class="scroll" style="max-height:240px"><table><tr><th>Month</th><th class="n">Fee (LBP)</th><th class="n">Covered by payments</th><th>Result</th></tr>
+  ${(()=>{let h='';for(let m=c.start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){const x=c.months[m];if(m>curMonth&&x.alloc<=TL)break;
+    const short=x.due-x.alloc,res=x.due===0?'<span class="badge gr">not charged</span>':x.alloc>=x.due-TL?(m>curMonth?'<span class="badge bl">paid in advance</span>':'<span class="badge g">paid</span>'):x.alloc>TL?`<span class="badge a">short by ${L(short)} — carried to next payment</span>`:(m===curMonth?'<span class="badge a">due</span>':'<span class="badge r">unpaid</span>');
+    h+=`<tr><td>${mLabel(m)}</td><td class="n">${fmt(x.due)}</td><td class="n">${fmt(x.alloc)}</td><td>${res}</td></tr>`}return h})()}
   </table></div>
   <p class="mute" style="font-size:12px">Payments fill the oldest unpaid month first. If someone pays less, the missing part stays as owed; if they pay more, the extra automatically goes to the next month(s).</p>
   <h3 style="margin:14px 0 6px;font-size:14px">Payments</h3>
-  <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total USD</th><th>For / note</th></tr>
-  ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n"><b>${U(eq(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
+  <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total</th><th>For / note</th></tr>
+  ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
   $('#dlg').showModal();
 }
 
@@ -574,22 +579,22 @@ function vSettings(){
     ${[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from)).map(r=>{const i=S.settings.rates.indexOf(r);return`<tr><td><input type="date" value="${r.from}" onchange="setRate(${i},'from',this.value)"></td><td><input value="${r.rate}" onchange="setRate(${i},'rate',parseAmt(this.value))"></td><td>${S.settings.rates.length>1?`<button class="b sm d" onclick="delRate(${i})">✕</button>`:''}</td></tr>`}).join('')}
     <tr><td><input type="date" id="nrDate" value="${today()}"></td><td><input id="nrRate" inputmode="decimal" placeholder="new rate, e.g. 90000"></td><td><button class="b sm p" onclick="newRateRow()">Add rate</button></td></tr></table>
   </div>
-  <div class="panel"><h2>Monthly fee (USD)</h2>
+  <div class="panel"><h2>Monthly fee (LBP)</h2>
     <p class="mute" style="margin-top:0">If the fee changes, add a new row with the month it starts. Earlier months keep the old fee.</p>
-    <table><tr><th>Effective from (YYYY-MM)</th><th>Fee per apartment ($)</th><th></th></tr>
+    <table><tr><th>Effective from (YYYY-MM)</th><th>Fee per apartment (LBP)</th><th></th></tr>
     ${S.settings.fees.map((f,i)=>`<tr><td><input value="${f.from}" onchange="setFee(${i},'from',this.value)"></td><td><input value="${f.fee}" onchange="setFee(${i},'fee',parseAmt(this.value))"></td><td>${S.settings.fees.length>1?`<button class="b sm d" onclick="log('Fee changed','Removed fee row: from '+S.settings.fees[${i}].from+' = '+S.settings.fees[${i}].fee);S.settings.fees.splice(${i},1);save();render()">✕</button>`:''}</td></tr>`).join('')}</table>
     <button class="b" style="margin-top:10px" onclick="S.settings.fees.push({from:curMonth,fee:feeFor(curMonth)});log('Fee changed','Added fee row from '+curMonth);save();render()">+ Add fee change</button>
   </div>
   <div class="panel"><h2>Apartments</h2>
-    <p class="mute" style="margin-top:0"><b>Opening balance</b> = what the tenant owed <i>before</i> the tracking start month. Type it in USD, in LBP, or both (e.g. <b>5</b> and <b>450k</b>). LBP is converted at the rate on file for the start month unless you type a rate. <b>Positive = owes, negative = paid in advance</b> (e.g. -15 or -1.5m). Leave "Start month" empty unless the tenant moved in later. To stop charging an apartment, use <b>Monthly grid → Pause monthly fees</b>.</p>
-    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th>Phone</th><th>Opening $</th><th>Opening LBP</th><th>Rate (optional)</th><th class="n">= Total</th><th>Start month</th></tr>
+    <p class="mute" style="margin-top:0"><b>Opening balance</b> = what the tenant owed <i>before</i> the tracking start month. Type it in USD, in LBP, or both (e.g. <b>5</b> and <b>450k</b>). The USD part is converted to LBP at the rate on file for the start month unless you type a rate. <b>Positive = owes, negative = paid in advance</b> (e.g. -15 or -1.5m). Leave "Start month" empty unless the tenant moved in later. To stop charging an apartment, use <b>Monthly grid → Pause monthly fees</b>.</p>
+    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th>Phone</th><th>Opening $</th><th>Opening LBP</th><th>Rate (optional)</th><th class="n">= Total (LBP)</th><th>Start month</th></tr>
     ${S.apts.map((a,i)=>`<tr><td><input style="width:90px" value="${esc(a.name)}" onchange="setApt(${i},'name',this.value)"></td>
       <td><input value="${esc(a.tenant)}" onchange="setApt(${i},'tenant',this.value)"></td>
       <td><input value="${esc(a.phone)}" onchange="setApt(${i},'phone',this.value)"></td>
       <td><input style="width:90px" value="${a.openUsd||''}" placeholder="0" onchange="setOpen(${i},'openUsd',this.value)"></td>
       <td><input style="width:110px" value="${a.openLbp||''}" placeholder="e.g. 450k" onchange="setOpen(${i},'openLbp',this.value)"></td>
       <td><input style="width:90px" value="${a.openRate||''}" placeholder="auto" onchange="setOpen(${i},'openRate',this.value)"></td>
-      <td class="n" id="ot${i}"><b>${U(openingOf(a))}</b></td>
+      <td class="n" id="ot${i}"><b>${fmt(openingOf(a))}</b> LBP</td>
       <td><input style="width:100px" placeholder="default" value="${a.start||''}" onchange="setApt(${i},'start',this.value.trim())"></td></tr>`).join('')}</table></div>
   </div>
   <div class="panel"><h2>Google sync (shared copy for all your devices)</h2>
@@ -618,8 +623,8 @@ function setS(k,v,label){const o=S.settings[k];if(o===v)return;S.settings[k]=v;l
 function setFee(i,k,v){const f=S.settings.fees[i],o=f[k];if(o===v)return;f[k]=v;log('Fee changed',`Fee row ${i+1} ${k}: ${o} → ${v}`);save()}
 function setOpen(i,k,v){const a=S.apts[i],o=a[k],n=k==='openRate'?(parseAmt(v)||''):parseAmt(v);if(o===n)return;
   const before=openingOf(a);a[k]=n;a.opening=openingOf(a);
-  log('Apartment changed',`${a.name} · opening balance ${U(before)} → ${U(a.opening)} (${{openUsd:'USD part',openLbp:'LBP part',openRate:'rate'}[k]}: ${o||'—'} → ${n||'—'})`);
-  const e=document.getElementById('ot'+i);if(e)e.innerHTML='<b>'+U(a.opening)+'</b>';save()}
+  log('Apartment changed',`${a.name} · opening balance ${L(before)} → ${L(a.opening)} (${{openUsd:'USD part',openLbp:'LBP part',openRate:'rate'}[k]}: ${o||'—'} → ${n||'—'})`);
+  const e=document.getElementById('ot'+i);if(e)e.innerHTML='<b>'+fmt(a.opening)+'</b> LBP';save()}
 function setApt(i,k,v){const a=S.apts[i],o=a[k];if(o===v)return;a[k]=v;if(k==='start')a.opening=openingOf(a);log('Apartment changed',`${a.name} · ${k}: ${o||'—'} → ${v||'—'}`);save()}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function backup(){S.settings.lastBackup=today();log('Backup','Downloaded backup file');save();download(`building-fund-backup-${today()}.json`,JSON.stringify(S,null,1),'application/json');render()}
