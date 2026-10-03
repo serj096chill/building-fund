@@ -133,10 +133,12 @@ function addRate(date,r){
   if(rateFor(date)===r||date<last.from)return false;
   rows.push({from:date,rate:r});log('Rate added',`${fmt(r)} LBP per $ from ${date} (previous: ${fmt(last.rate)})`);toast(`New rate recorded: ${fmt(r)} from ${date}`);return true;
 }
-const eq=p=>(+p.usd||0)+(+p.lbp||0)/rateOf(p);   // value in USD (cash, expenses, projects)
-const eqL=p=>(+p.lbp||0)+(+p.usd||0)*rateOf(p);   // value in LBP (monthly fees are calculated in LBP, so LBP payments count exactly)
+const netU=p=>(+p.usd||0)-(+p.chU||0), netL=p=>(+p.lbp||0)-(+p.chL||0);   // received minus change given back
+const eq=p=>netU(p)+netL(p)/rateOf(p);   // value in USD (cash, expenses, projects)
+const eqL=p=>netL(p)+netU(p)*rateOf(p);   // value in LBP (monthly fees are calculated in LBP, so LBP payments count exactly)
 const who=p=>aptById(p.aptId)?.name||'?';
-const amtTxt=p=>[p.usd?U(p.usd):'',p.lbp?fmt(p.lbp)+' LBP'+(p.usd?'':' @ '+fmt(rateOf(p))):''].filter(Boolean).join(' + ');
+const amtTxt=p=>[p.usd?U(p.usd):'',p.lbp?fmt(p.lbp)+' LBP'+(p.usd?'':' @ '+fmt(rateOf(p))):''].filter(Boolean).join(' + ')+((p.chU||p.chL)?' (change given back: '+[p.chU?U(p.chU):'',p.chL?fmt(p.chL)+' LBP':''].filter(Boolean).join(' + ')+')':'');
+const chU=p=>p.chU?`<div style="font-size:11px;color:var(--red)">change −${U(p.chU)}</div>`:'', chL=p=>p.chL?`<div style="font-size:11px;color:var(--red)">change −${fmt(p.chL)}</div>`:'';
 const payTxt=p=>`${who(p)}: ${amtTxt(p)} = ${L(eqL(p))} ≈ ${U(eq(p))} (dated ${p.date})${p.target&&projById(p.target)?' → project '+projById(p.target).name:''}${p.note?' – '+p.note:''}`;
 const expTxt=x=>`${x.cat}${x.payee?' / '+x.payee:''}: ${amtTxt(x)} = ${U(eq(x))} (dated ${x.date})${x.proj&&projById(x.proj)?' [project '+projById(x.proj).name+']':''}${x.note?' – '+x.note:''}`;
 
@@ -219,8 +221,8 @@ const projRem=(a,pr)=>projShare(a,pr)-projPaid(a,pr);
 const projDues=a=>S.projects.map(pr=>({pr,share:projShare(a,pr),rem:projRem(a,pr)})).filter(x=>x.share>0&&x.rem>TINY);
 function cash(){
   const P=S.payments,E=S.expenses,s=S.settings;
-  const l=(+s.cashL||0)+P.reduce((t,p)=>t+(+p.lbp||0),0)-E.reduce((t,p)=>t+(+p.lbp||0),0);
-  const u=(+s.cashU||0)+P.reduce((t,p)=>t+(+p.usd||0),0)-E.reduce((t,p)=>t+(+p.usd||0),0);
+  const l=(+s.cashL||0)+P.reduce((t,p)=>t+netL(p),0)-E.reduce((t,p)=>t+(+p.lbp||0),0);
+  const u=(+s.cashU||0)+P.reduce((t,p)=>t+netU(p),0)-E.reduce((t,p)=>t+(+p.usd||0),0);
   return{l,u,total:u+l/curRate()};
 }
 
@@ -309,6 +311,10 @@ function vPayments(){
     <div class="row"><div><label>Paid in USD ($)</label><input id="pU" inputmode="decimal" placeholder="e.g. 5" value="${e&&e.usd?e.usd:''}" oninput="updPay()"></div>
     <div><label>Paid in LBP</label><input id="pL" inputmode="decimal" placeholder="e.g. 50k" value="${e&&e.lbp?e.lbp:''}" oninput="updPay()"></div></div>
     <label>Exchange rate (LBP per $)</label><input id="pR" inputmode="decimal" value="${e?rateOf(e):curRate()}" oninput="updPay()">
+    <label>Change given back to the tenant (if any)</label>
+    <div class="row"><div><input id="pCU" inputmode="decimal" placeholder="USD $" value="${e&&e.chU?e.chU:''}" oninput="updPay()"></div>
+    <div><input id="pCL" inputmode="decimal" placeholder="LBP e.g. 100k" value="${e&&e.chL?e.chL:''}" oninput="updPay()"></div></div>
+    <div class="row" style="margin-top:6px"><button class="b sm" onclick="giveChange('L')">Auto: change in LBP</button><button class="b sm" onclick="giveChange('U')">Auto: change in USD</button></div>
     <div class="row" style="margin-top:8px"><button class="b sm" id="fill1" onclick="fillL(1)">LBP to complete 1 month</button><button class="b sm" id="fill0" onclick="fillL(0)">LBP to clear balance</button></div>
     <label>Note (optional)</label><input id="pN" placeholder="e.g. paid for Jan–Mar" value="${e?esc(e.note||''):''}">
     <div class="total" id="pTot"></div>
@@ -318,15 +324,16 @@ function vPayments(){
   <div class="panel"><div class="tools"><h2 style="margin:0;margin-right:auto">All payments</h2>
     <select onchange="payFilter=this.value;render()"><option value="">All apartments</option>${aptOptions(payFilter)}</select></div>
     <div class="scroll"><table><tr><th>Date</th><th>Apt</th><th>For</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Rate</th><th class="n">Total</th><th>Note</th><th></th></tr>
-    ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${esc(p.note||'')}</td>
+    ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}${chU(p)}</td><td class="n">${p.lbp?fmt(p.lbp):''}${chL(p)}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${esc(p.note||'')}</td>
       <td style="white-space:nowrap"><button class="b sm" onclick="payEdit='${p.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delPay('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">No payments yet.</td></tr>'}
     <tr><td colspan="6"><b>Total shown</b></td><td class="n"><b>${fmt(totL)}</b> LBP<div class="mute" style="font-size:11px">${U(tot)}</div></td><td colspan="2"></td></tr></table></div>
   </div></div>`;
 }
-function payVals(){const u=parseAmt($('#pU').value),l=parseAmt($('#pL').value),r=parseAmt($('#pR').value)||rateFor($('#pDate').value||today());return{u,l,r,t:u+l/r,tl:l+u*r}}
+function payVals(){const u=parseAmt($('#pU').value),l=parseAmt($('#pL').value),cu=parseAmt($('#pCU').value),cl=parseAmt($('#pCL').value),r=parseAmt($('#pR').value)||rateFor($('#pDate').value||today());
+  const nu=u-cu,nl=l-cl;return{u,l,cu,cl,nu,nl,r,t:nu+nl/r,tl:nl+nu*r}}
 function updPay(){
   if(!$('#pTot'))return;
-  const{u,l,r,t,tl}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  const{u,l,cu,cl,nu,nl,r,t,tl}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
   const colr=b=>`var(${b>0?'--red':b<0?'--blue':'--green'})`;
   let after='';
   if(a&&pr){
@@ -338,9 +345,20 @@ function updPay(){
   }
   const dt=$('#pDate').value||today(),onFile=rateFor(dt);
   if(l>0&&!payEdit&&r!==onFile&&dt>=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from)).pop().from)after+=`<div style="font-size:13px;margin-top:4px;color:var(--amber)">Rate on file is ${fmt(onFile)}. ${fmt(r)} will be saved as the <b>new rate from ${dt}</b>; older payments keep their own rate.</div>`;
-  $('#pTot').innerHTML=pr?`${U(u)} + ${fmt(l)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>${after}`:`${U(u)} × ${fmt(r)} + ${fmt(l)} LBP = <b>${L(tl)}</b> <span class="mute">≈ ${U(t)}</span>${after}`;
+  const chLine=(cu||cl)?`<div class="mute" style="font-size:13px">Received ${U(u)} + ${fmt(l)} LBP, minus change back ${[cu?U(cu):'',cl?fmt(cl)+' LBP':''].filter(Boolean).join(' + ')}</div>`:'';
+  $('#pTot').innerHTML=chLine+(pr?`${U(nu)} + ${fmt(nl)} LBP ÷ ${fmt(r)} = <b>${U(t)}</b>${after}`:`${U(nu)} × ${fmt(r)} + ${fmt(nl)} LBP = <b>${L(tl)}</b> <span class="mute">≈ ${U(t)}</span>${after}`);
   $('#fill1').style.display=pr?'none':'';
   $('#fill0').textContent=pr?'LBP to clear this share':'LBP to clear balance';
+}
+// work out the change: what was handed over minus what is actually due, given back in LBP or USD
+function giveChange(cur){
+  const{u,l,r}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
+  let due;
+  if(pr)due=(projRem(a,pr)+(old&&old.target===pr.id?eq(old):0))*r;
+  else{const c=calc(a),bal=c.balance+(old&&!old.target?eqL(old):0);due=bal>TL?bal:c.fee}
+  const surplus=l+u*r-due;
+  if(surplus<=TL)return toast('Nothing to give back — the amount is not more than what is due');
+  $('#pCU').value=cur==='U'?Math.round(surplus/r*100)/100:'';$('#pCL').value=cur==='L'?Math.round(surplus):'';updPay();
 }
 function fillL(one){
   const{u,r}=payVals(),a=aptById($('#pApt').value),pr=projById($('#pTgt').value),old=payEdit?S.payments.find(p=>p.id===payEdit):null;
@@ -349,9 +367,9 @@ function fillL(one){
   updPay();
 }
 function savePay(){
-  const{u,l,r,t,tl}=payVals();
-  if(t<=0)return toast('Enter an amount in USD and/or LBP');
-  const rec={aptId:$('#pApt').value,target:$('#pTgt').value,date:$('#pDate').value||today(),usd:u,lbp:l,rate:r,note:$('#pN').value.trim()};
+  const{u,l,cu,cl,r,t,tl}=payVals();
+  if(t<=0)return toast('Enter an amount in USD and/or LBP (the amount left after change must be above zero)');
+  const rec={aptId:$('#pApt').value,target:$('#pTgt').value,date:$('#pDate').value||today(),usd:u,lbp:l,chU:cu,chL:cl,rate:r,note:$('#pN').value.trim()};
   if(payEdit){const p=S.payments.find(p=>p.id===payEdit),before=payTxt(p);Object.assign(p,rec);log('Payment edited',`${before}  →  ${payTxt(p)}`)}
   else{const p={id:uid(),...rec};S.payments.push(p);log('Payment added',payTxt(p))}
   if(l>0&&!payEdit)addRate(rec.date,r);
@@ -536,7 +554,7 @@ function history_(id){
   <p class="mute" style="font-size:12px">Payments fill the oldest unpaid month first. If someone pays less, the missing part stays as owed; if they pay more, the extra automatically goes to the next month(s).</p>
   <h3 style="margin:14px 0 6px;font-size:14px">Payments</h3>
   <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total</th><th>For / note</th></tr>
-  ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
+  ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}${chU(p)}</td><td class="n">${p.lbp?fmt(p.lbp):''}${chL(p)}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
   $('#dlg').showModal();
 }
 
@@ -632,7 +650,7 @@ function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{cons
   if(!confirm('Replace ALL current data with this backup?'))return;S=d;normalize();
   log('Restore','Data restored from backup file');save();render();toast('Backup restored')}catch(e){toast('Not a valid backup file')}};r.readAsText(f)}
 function exportCSV(){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  const rows=[['Date','Apartment','Tenant','For','USD','LBP','Rate','Total USD','Note'],...S.payments.map(p=>{const a=aptById(p.aptId);return[p.date,a?.name,a?.tenant,p.target?projById(p.target)?.name:'Monthly fees',p.usd,p.lbp,p.rate,r2(eq(p)),p.note]})];
+  const rows=[['Date','Apartment','Tenant','For','USD received','LBP received','USD change given','LBP change given','Rate','Total LBP','Total USD','Note'],...S.payments.map(p=>{const a=aptById(p.aptId);return[p.date,a?.name,a?.tenant,p.target?projById(p.target)?.name:'Monthly fees',p.usd,p.lbp,p.chU||0,p.chL||0,p.rate,Math.round(eqL(p)),r2(eq(p)),p.note]})];
   download('payments.csv','﻿'+rows.map(r=>r.map(q).join(',')).join('\n'),'text/csv')}
 function resetAll(){if(confirm('Erase ALL data? This cannot be undone (download a backup first!).')&&confirm('Really erase everything?')){S=defaults();log('Reset','All data erased');save();render()}}
 
