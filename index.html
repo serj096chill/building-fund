@@ -125,13 +125,15 @@ if(!S.ver){ // v1 stored fees/opening balances in LBP; USD is now the main curre
   S.ver=2;log('Migration',`Switched to USD as main currency (fees and opening balances converted at ${fmt(r)} LBP per $)`);saveLocal();
 }
 if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate;saveLocal()}
-S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{}});
+S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{};if(a.openUsd===undefined){a.openUsd=+a.opening||0;a.openLbp=0;a.openRate=''}});
 
 const aptById=id=>S.apts.find(a=>a.id===id);
 const projById=id=>S.projects.find(p=>p.id===id);
 // exchange-rate history: each row applies from its date until the next row; payments keep the rate they were saved with
 function rateFor(d){const r=[...S.settings.rates].sort((a,b)=>a.from.localeCompare(b.from));let v=r[0].rate;for(const x of r)if(x.from<=d)v=x.rate;return v}
 const curRate=()=>rateFor(today());
+// opening balance = USD part + LBP part (converted at the typed rate, or the rate on file for the tracking start month)
+const openingOf=a=>(+a.openUsd||0)+(+a.openLbp||0)/(+a.openRate||rateFor((a.start||S.settings.startMonth)+'-01'));
 const rateOf=p=>+p.rate||rateFor(p.date||today());
 function addRate(date,r){
   const rows=S.settings.rates,last=[...rows].sort((a,b)=>a.from.localeCompare(b.from)).pop();
@@ -149,7 +151,7 @@ let syncTimer=null;
 function normalize(){
   if(!S.log)S.log=[];if(!S.projects)S.projects=[];
   if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate}
-  S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{}});
+  S.apts.forEach(a=>{a.pauses=a.pauses||[];a.ov=a.ov||{};if(a.openUsd===undefined){a.openUsd=+a.opening||0;a.openLbp=0;a.openRate=''}});
 }
 async function gcall(body){
   try{const r=await fetch(SY.url,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify({token:SY.token,...body})});return await r.json()}
@@ -188,7 +190,7 @@ function dueFor(a,m){const o=a.ov&&a.ov[m];if(o!==undefined)return o?feeFor(m):0
 function calc(a){
   const start=a.start||S.settings.startMonth;
   const paid=S.payments.filter(p=>p.aptId===a.id&&!p.target).reduce((s,p)=>s+eq(p),0);
-  const opening=+a.opening||0;
+  const opening=openingOf(a);
   let credit=paid,openLeft=0;
   if(opening>0){const x=Math.min(credit,opening);credit-=x;openLeft=opening-x}else credit+=-opening;
   const months={};let due=opening;
@@ -520,6 +522,14 @@ function history_(id){
   <p><span class="badge ${s.cls}">${s.txt}</span> &nbsp; Fee balance: <b>${c.balance>TINY?'owes '+U(c.balance):c.balance<-TINY?'advance '+U(-c.balance):'settled'}</b> &nbsp; Fees paid through: <b>${c.paidThrough?mLabel(c.paidThrough):'—'}</b></p>
   ${pd.length?`<p>Project dues: ${pd.map(d=>`<span class="badge r">${esc(d.pr.name)}: ${U(d.rem)}</span>`).join(' ')}</p>`:''}
   <p class="mute">Tracked from ${mLabel(c.start)}${c.opening?' · opening balance '+U(c.opening):''} · total paid in fees ${U(c.paid)}</p>
+  <h3 style="margin:14px 0 6px;font-size:14px">Month by month</h3>
+  <div class="scroll" style="max-height:240px"><table><tr><th>Month</th><th class="n">Fee</th><th class="n">Covered by payments</th><th>Result</th></tr>
+  ${(()=>{let h='';for(let m=c.start;m<=ymAdd(curMonth,24);m=ymAdd(m,1)){const x=c.months[m];if(m>curMonth&&x.alloc<=TINY)break;
+    const short=x.due-x.alloc,res=x.due===0?'<span class="badge gr">not charged</span>':x.alloc>=x.due-TINY?(m>curMonth?'<span class="badge bl">paid in advance</span>':'<span class="badge g">paid</span>'):x.alloc>TINY?`<span class="badge a">short by ${U(short)} — carried to next payment</span>`:(m===curMonth?'<span class="badge a">due</span>':'<span class="badge r">unpaid</span>');
+    h+=`<tr><td>${mLabel(m)}</td><td class="n">${U(x.due)}</td><td class="n">${U(x.alloc)}</td><td>${res}</td></tr>`}return h})()}
+  </table></div>
+  <p class="mute" style="font-size:12px">Payments fill the oldest unpaid month first. If someone pays less, the missing part stays as owed; if they pay more, the extra automatically goes to the next month(s).</p>
+  <h3 style="margin:14px 0 6px;font-size:14px">Payments</h3>
   <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total USD</th><th>For / note</th></tr>
   ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}</td><td class="n">${p.lbp?fmt(p.lbp):''}</td><td class="n"><b>${U(eq(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
   $('#dlg').showModal();
@@ -571,12 +581,15 @@ function vSettings(){
     <button class="b" style="margin-top:10px" onclick="S.settings.fees.push({from:curMonth,fee:feeFor(curMonth)});log('Fee changed','Added fee row from '+curMonth);save();render()">+ Add fee change</button>
   </div>
   <div class="panel"><h2>Apartments</h2>
-    <p class="mute" style="margin-top:0"><b>Opening balance ($)</b> = what the tenant owed <i>before</i> the tracking start month: <b>positive = owes</b> (e.g. 12), <b>negative = paid in advance</b> (e.g. -15 covers their first months). Leave "Start month" empty unless the tenant moved in later. To stop charging an apartment, use <b>Monthly grid → Pause monthly fees</b>.</p>
-    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th>Phone</th><th>Opening balance ($)</th><th>Start month</th></tr>
+    <p class="mute" style="margin-top:0"><b>Opening balance</b> = what the tenant owed <i>before</i> the tracking start month. Type it in USD, in LBP, or both (e.g. <b>5</b> and <b>450k</b>). LBP is converted at the rate on file for the start month unless you type a rate. <b>Positive = owes, negative = paid in advance</b> (e.g. -15 or -1.5m). Leave "Start month" empty unless the tenant moved in later. To stop charging an apartment, use <b>Monthly grid → Pause monthly fees</b>.</p>
+    <div class="scroll"><table><tr><th>Apt</th><th>Tenant</th><th>Phone</th><th>Opening $</th><th>Opening LBP</th><th>Rate (optional)</th><th class="n">= Total</th><th>Start month</th></tr>
     ${S.apts.map((a,i)=>`<tr><td><input style="width:90px" value="${esc(a.name)}" onchange="setApt(${i},'name',this.value)"></td>
       <td><input value="${esc(a.tenant)}" onchange="setApt(${i},'tenant',this.value)"></td>
       <td><input value="${esc(a.phone)}" onchange="setApt(${i},'phone',this.value)"></td>
-      <td><input value="${a.opening||0}" onchange="setApt(${i},'opening',parseAmt(this.value))"></td>
+      <td><input style="width:90px" value="${a.openUsd||''}" placeholder="0" onchange="setOpen(${i},'openUsd',this.value)"></td>
+      <td><input style="width:110px" value="${a.openLbp||''}" placeholder="e.g. 450k" onchange="setOpen(${i},'openLbp',this.value)"></td>
+      <td><input style="width:90px" value="${a.openRate||''}" placeholder="auto" onchange="setOpen(${i},'openRate',this.value)"></td>
+      <td class="n" id="ot${i}"><b>${U(openingOf(a))}</b></td>
       <td><input style="width:100px" placeholder="default" value="${a.start||''}" onchange="setApt(${i},'start',this.value.trim())"></td></tr>`).join('')}</table></div>
   </div>
   <div class="panel"><h2>Google sync (shared copy for all your devices)</h2>
@@ -600,10 +613,14 @@ function newRateRow(){const d=$('#nrDate').value||today(),r=parseAmt($('#nrRate'
   S.settings.rates=S.settings.rates.filter(x=>x.from!==d);const prev=rateFor(d);S.settings.rates.push({from:d,rate:r});log('Rate added',`${fmt(r)} LBP per $ from ${d} (previous: ${fmt(prev)})`);save();render()}
 function setRate(i,k,v){const x=S.settings.rates[i],o=x[k];if(!v||o===v)return;x[k]=v;log('Rate changed',`Rate row ${k}: ${o} → ${v}`);save();render()}
 function delRate(i){const x=S.settings.rates[i];log('Rate deleted',`${fmt(x.rate)} from ${x.from}`);S.settings.rates.splice(i,1);save();render()}
-function setStart(el){if(!/^\d{4}-\d{2}$/.test(el.value))return toast('Use format YYYY-MM');setS('startMonth',el.value,'Tracking start')}
+function setStart(el){if(!/^\d{4}-\d{2}$/.test(el.value))return toast('Use format YYYY-MM');setS('startMonth',el.value,'Tracking start');S.apts.forEach(a=>a.opening=openingOf(a));save()}
 function setS(k,v,label){const o=S.settings[k];if(o===v)return;S.settings[k]=v;log('Settings changed',`${label||k}: ${o} → ${v}`);save()}
 function setFee(i,k,v){const f=S.settings.fees[i],o=f[k];if(o===v)return;f[k]=v;log('Fee changed',`Fee row ${i+1} ${k}: ${o} → ${v}`);save()}
-function setApt(i,k,v){const a=S.apts[i],o=a[k];if(o===v)return;a[k]=v;log('Apartment changed',`${a.name} · ${k}: ${o||'—'} → ${v||'—'}`);save()}
+function setOpen(i,k,v){const a=S.apts[i],o=a[k],n=k==='openRate'?(parseAmt(v)||''):parseAmt(v);if(o===n)return;
+  const before=openingOf(a);a[k]=n;a.opening=openingOf(a);
+  log('Apartment changed',`${a.name} · opening balance ${U(before)} → ${U(a.opening)} (${{openUsd:'USD part',openLbp:'LBP part',openRate:'rate'}[k]}: ${o||'—'} → ${n||'—'})`);
+  const e=document.getElementById('ot'+i);if(e)e.innerHTML='<b>'+U(a.opening)+'</b>';save()}
+function setApt(i,k,v){const a=S.apts[i],o=a[k];if(o===v)return;a[k]=v;if(k==='start')a.opening=openingOf(a);log('Apartment changed',`${a.name} · ${k}: ${o||'—'} → ${v||'—'}`);save()}
 function download(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function backup(){S.settings.lastBackup=today();log('Backup','Downloaded backup file');save();download(`building-fund-backup-${today()}.json`,JSON.stringify(S,null,1),'application/json');render()}
 function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.apts||!d.settings)throw 0;
