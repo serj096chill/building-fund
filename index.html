@@ -325,7 +325,7 @@ function vPayments(){
     <select onchange="payFilter=this.value;render()"><option value="">All apartments</option>${aptOptions(payFilter)}</select></div>
     <div class="scroll"><table><tr><th>Date</th><th>Apt</th><th>For</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Rate</th><th class="n">Total</th><th>Note</th><th></th></tr>
     ${list.map(p=>`<tr><td>${p.date}</td><td><b>${esc(who(p))}</b></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span>`:'<span class="mute">Fees</span>'}</td><td class="n">${p.usd?U(p.usd):''}${chU(p)}</td><td class="n">${p.lbp?fmt(p.lbp):''}${chL(p)}</td><td class="n">${p.lbp?fmt(rateOf(p)):''}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${esc(p.note||'')}</td>
-      <td style="white-space:nowrap"><button class="b sm" onclick="payEdit='${p.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delPay('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">No payments yet.</td></tr>'}
+      <td style="white-space:nowrap"><button class="b sm" onclick="receipt('${p.id}')">Receipt</button> <button class="b sm" onclick="payEdit='${p.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delPay('${p.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="9" class="mute">No payments yet.</td></tr>'}
     <tr><td colspan="6"><b>Total shown</b></td><td class="n"><b>${fmt(totL)}</b> LBP<div class="mute" style="font-size:11px">${U(tot)}</div></td><td colspan="2"></td></tr></table></div>
   </div></div>`;
 }
@@ -373,8 +373,9 @@ function savePay(){
   if(payEdit){const p=S.payments.find(p=>p.id===payEdit),before=payTxt(p);Object.assign(p,rec);log('Payment edited',`${before}  →  ${payTxt(p)}`)}
   else{const p={id:uid(),...rec};S.payments.push(p);log('Payment added',payTxt(p))}
   if(l>0&&!payEdit)addRate(rec.date,r);
-  const a=aptById(rec.aptId);payEdit=null;payPre=rec.aptId;payTarget='';save();render();
+  const a=aptById(rec.aptId),isNew=!payEdit,newId=isNew?S.payments[S.payments.length-1].id:null;payEdit=null;payPre=rec.aptId;payTarget='';save();render();
   toast(`Saved ${rec.target?U(t):L(tl)} for ${a.name}`);
+  if(isNew)receipt(newId);
 }
 function delPay(id){const p=S.payments.find(p=>p.id===id);if(confirm('Delete this payment?')){log('Payment deleted',payTxt(p));S.payments=S.payments.filter(p=>p.id!==id);save();render()}}
 
@@ -556,6 +557,58 @@ function history_(id){
   <div class="scroll"><table><tr><th>Date</th><th class="n">USD</th><th class="n">LBP</th><th class="n">Total</th><th>For / note</th></tr>
   ${ps.map(p=>`<tr><td>${p.date}</td><td class="n">${p.usd?U(p.usd):''}${chU(p)}</td><td class="n">${p.lbp?fmt(p.lbp):''}${chL(p)}</td><td class="n"><b>${fmt(eqL(p))}</b> LBP<div class="mute" style="font-size:11px">${U(eq(p))}</div></td><td>${p.target?`<span class="badge bl">${esc(projById(p.target)?.name||'?')}</span> `:''}${esc(p.note||'')}</td></tr>`).join('')||'<tr><td colspan="5" class="mute">No payments.</td></tr>'}</table></div>`;
   $('#dlg').showModal();
+}
+
+/* ---------- receipts (WhatsApp / image) ---------- */
+function receiptData(id){
+  const p=S.payments.find(x=>x.id===id),a=aptById(p.aptId),pr=projById(p.target),c=calc(a);
+  const no=String(S.payments.indexOf(p)+1).padStart(4,'0');
+  const isLast=S.payments.filter(x=>x.aptId===p.aptId&&(x.target||'')===(p.target||'')).pop().id===p.id;
+  const recv=[p.usd?U(p.usd):'',p.lbp?fmt(p.lbp)+' LBP':''].filter(Boolean).join(' + ')||'—';
+  const rows=[['Date',p.date],['Apartment',a.name+(a.tenant?' — '+a.tenant:'')],['For',pr?'Project: '+pr.name:'Monthly fees'],['Received',recv]];
+  if(p.chU||p.chL)rows.push(['Change given back',[p.chU?U(p.chU):'',p.chL?fmt(p.chL)+' LBP':''].filter(Boolean).join(' + ')]);
+  rows.push(['Amount counted',pr?U(eq(p)):`${L(eqL(p))} (≈ ${U(eq(p))})`]);
+  if(p.usd&&p.lbp||p.chL&&p.usd||!pr&&p.usd)rows.push(['Rate used',`$1 = ${fmt(rateOf(p))} LBP`]);
+  if(p.note)rows.push(['Note',p.note]);
+  const lab=isLast?'Balance after this payment':'Current balance';
+  if(pr){const rem=projRem(a,pr);rows.push([lab+' ('+pr.name+')',rem>TINY?'still owes '+U(rem):rem<-TINY?'overpaid '+U(-rem):'settled ✓'])}
+  else{rows.push([lab,c.balance>TL?'owes '+L(c.balance):c.balance<-TL?'paid ahead '+L(-c.balance):'settled ✓']);
+    if(c.paidThrough)rows.push(['Fees paid through',mLabel(c.paidThrough)])}
+  const text=`🧾 *Payment receipt #${no}*\n*${S.settings.building}*\n\n`+rows.map(([k,v])=>`${k}: ${v}`).join('\n')+'\n\nThank you 🙏';
+  return{p,a,no,rows,text};
+}
+function waLink(a,text){
+  let n=String(a.phone||'').replace(/[^\d+]/g,'').replace(/^\+/,'');
+  if(n.startsWith('00'))n=n.slice(2);else if(n.startsWith('0'))n='961'+n.slice(1);else if(n&&n.length<=8)n='961'+n;   // Lebanese local numbers
+  return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+}
+function receipt(id){
+  const r=receiptData(id);
+  $('#dlg').innerHTML=`<div class="tools"><h2 style="margin:0;margin-right:auto">Receipt #${r.no} — ${esc(r.a.name)}</h2><button class="b" onclick="$('#dlg').close()">Close</button></div>
+  <div style="white-space:pre-wrap;background:var(--grey);border-radius:10px;padding:12px 14px;font-size:14px">${esc(r.text.replace(/\*/g,''))}</div>
+  <label>Tenant's WhatsApp number ${r.a.phone?'':'<span style="color:var(--red)">— not saved yet, so WhatsApp will ask you to pick a contact</span>'}</label>
+  <input id="rcPhone" value="${esc(r.a.phone||'')}" placeholder="e.g. 03 123 456 or +961 3 123 456" onchange="setReceiptPhone('${id}',this.value)">
+  <div class="tools" style="margin-top:14px"><a class="b p" id="rcWa" style="text-decoration:none;display:inline-block;border-radius:8px;padding:8px 12px;font-weight:600;background:#1faa59;border:1px solid #1faa59;color:#fff" target="_blank" rel="noopener" href="${waLink(r.a,r.text)}">Send on WhatsApp${r.a.phone?' to '+esc(r.a.phone):''}</a>
+  <button class="b" onclick="copyReceipt('${id}')">Copy text</button><button class="b" onclick="receiptImage('${id}')">Save / share as image</button></div>
+  <p class="mute" style="font-size:12px;margin-bottom:0">The number is saved on the apartment, so next time it opens their chat directly. If the number has no country code, +961 (Lebanon) is assumed.</p>`;
+  $('#dlg').showModal();
+}
+function setReceiptPhone(id,v){const p=S.payments.find(x=>x.id===id),i=S.apts.findIndex(a=>a.id===p.aptId);setApt(i,'phone',v.trim());receipt(id)}
+function copyReceipt(id){navigator.clipboard.writeText(receiptData(id).text).then(()=>toast('Copied — paste into WhatsApp'),()=>toast('Copy failed'))}
+function receiptImage(id){
+  const r=receiptData(id),W=640,pad=36,rowH=44,H=170+r.rows.length*rowH+80,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const x=cv.getContext('2d'),F='-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif';
+  x.fillStyle='#fff';x.fillRect(0,0,W,H);x.fillStyle='#1f5eff';x.fillRect(0,0,W,10);
+  x.fillStyle='#1c2230';x.font=`700 28px ${F}`;x.fillText(S.settings.building||'Building Fund',pad,64);
+  x.fillStyle='#6b7385';x.font=`600 15px ${F}`;x.fillText(`PAYMENT RECEIPT  #${r.no}`,pad,92);
+  x.strokeStyle='#e3e6ec';x.lineWidth=1;
+  r.rows.forEach(([k,v],i)=>{const y=150+i*rowH;x.beginPath();x.moveTo(pad,y-26);x.lineTo(W-pad,y-26);x.stroke();
+    x.fillStyle='#6b7385';x.font=`500 15px ${F}`;x.textAlign='left';x.fillText(k,pad,y);
+    x.fillStyle='#1c2230';x.font=`600 16px ${F}`;x.textAlign='right';let t=String(v);while(x.measureText(t).width>W-2*pad-190&&t.length>4)t=t.slice(0,-2);if(t!==String(v))t+='…';x.fillText(t,W-pad,y)});
+  x.textAlign='left';x.fillStyle='#157a43';x.font=`600 16px ${F}`;x.fillText('Thank you',pad,H-34);
+  cv.toBlob(b=>{const f=new File([b],`receipt-${r.no}-${r.a.name}.png`,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:'Payment receipt'}).catch(()=>{});
+    else{const l=document.createElement('a');l.href=URL.createObjectURL(b);l.download=f.name;l.click()}});
 }
 
 /* ---------- activity log ---------- */
