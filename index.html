@@ -105,7 +105,7 @@ function defaults(){
   const apts=[];
   for(let f=1;f<=5;f++)for(const l of (f<5?'ABC':'AB'))apts.push({id:uid(),name:`F${f}-${l}`,tenant:'',phone:'',opening:0,openUsd:0,openLbp:0,openRate:'',start:'',pauses:[],ov:{}});
   return{ver:3,settings:{building:'Building Fund',startMonth:'2025-01',rates:[{from:'2020-01-01',rate:89500}],fees:[{from:'2025-01',fee:500000}],cashL:0,cashU:0,lastBackup:''},
-    apts,payments:[],expenses:[],projects:[],log:[]};
+    apts,payments:[],expenses:[],projects:[],exchanges:[],log:[]};
 }
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
@@ -145,7 +145,7 @@ const expTxt=x=>`${x.cat}${x.payee?' / '+x.payee:''}: ${amtTxt(x)} = ${U(eq(x))}
 /* ---------- Google sync (Apps Script web app = shared copy for all devices) ---------- */
 let syncTimer=null;
 function normalize(){
-  if(!S.log)S.log=[];if(!S.projects)S.projects=[];
+  if(!S.log)S.log=[];if(!S.projects)S.projects=[];if(!S.exchanges)S.exchanges=[];
   if(!S.settings.rates){S.settings.rates=[{from:'2020-01-01',rate:S.settings.rate||89500}];delete S.settings.rate}
   if(!S.ver){S.apts.forEach(a=>{a.openLbp=+a.opening||0;a.openUsd=0;a.openRate=''});S.ver=3;log('Migration','Monthly fees and balances are now calculated in LBP')}
   else if(S.ver<3){
@@ -223,11 +223,13 @@ function cash(){
   const P=S.payments,E=S.expenses,s=S.settings;
   const l=(+s.cashL||0)+P.reduce((t,p)=>t+netL(p),0)-E.reduce((t,p)=>t+(+p.lbp||0),0);
   const u=(+s.cashU||0)+P.reduce((t,p)=>t+netU(p),0)-E.reduce((t,p)=>t+(+p.usd||0),0);
-  return{l,u,total:u+l/curRate()};
+  const X=(S.exchanges||[]).map(fx),xl=X.reduce((t,x)=>t+x.l,0),xu=X.reduce((t,x)=>t+x.u,0);   // currency swaps inside the safe
+  return{l:l+xl,u:u+xu,total:(u+xu)+(l+xl)/curRate()};
 }
+const fx=x=>x.dir==='L2U'?{l:-x.lbp,u:x.usd}:{l:x.lbp,u:-x.usd};
 
 /* ---------- navigation ---------- */
-const TABS=[['overview','Overview'],['payments','Payments'],['expenses','Expenses'],['projects','Projects'],['grid','Monthly grid'],['log','Activity log'],['settings','Settings']];
+const TABS=[['overview','Overview'],['payments','Payments'],['expenses','Expenses'],['exchange','Exchange'],['projects','Projects'],['grid','Monthly grid'],['log','Activity log'],['settings','Settings']];
 let logType='',logQ='',logFrom='',logTo='';
 let tab='overview',filter='all',gridYear=+curMonth.slice(0,4),payEdit=null,expEdit=null,payPre=null,payTarget='',payFilter='',expFilter='';
 function go(t){tab=t;render()}
@@ -235,9 +237,10 @@ function render(){
   $('#title').textContent=S.settings.building||'Building Fund';
   document.title=S.settings.building||'Building Fund';
   $('#nav').innerHTML=TABS.map(([k,n])=>`<button class="${k===tab?'on':''}" onclick="go('${k}')">${n}</button>`).join('');
-  $('#main').innerHTML=({overview:vOverview,payments:vPayments,expenses:vExpenses,projects:vProjects,grid:vGrid,log:vLog,settings:vSettings})[tab]();
+  $('#main').innerHTML=({overview:vOverview,payments:vPayments,expenses:vExpenses,exchange:vExchange,projects:vProjects,grid:vGrid,log:vLog,settings:vSettings})[tab]();
   if(tab==='payments')updPay();
   if(tab==='expenses')updExp();
+  if(tab==='exchange')updEx();
 }
 
 /* ---------- overview ---------- */
@@ -420,6 +423,49 @@ function saveExp(){
   if(l>0&&!expEdit)addRate(rec.date,r);expEdit=null;save();render();toast('Expense saved');
 }
 function delExp(id){const x=S.expenses.find(x=>x.id===id);if(confirm('Delete this expense?')){log('Expense deleted',expTxt(x));S.expenses=S.expenses.filter(x=>x.id!==id);save();render()}}
+
+/* ---------- exchange (swap currency inside the safe) ---------- */
+let exEdit=null;
+const exTxt=x=>x.dir==='L2U'?`Safe gave ${fmt(x.lbp)} LBP, received ${U(x.usd)}`:`Safe gave ${U(x.usd)}, received ${fmt(x.lbp)} LBP`;
+function vExchange(){
+  const e=exEdit?S.exchanges.find(x=>x.id===exEdit):null,c=cash();
+  const list=[...S.exchanges].sort((a,b)=>b.date.localeCompare(a.date));
+  return`<div class="cards"><div class="card"><div class="k">Cash in USD</div><div class="v">${U(c.u)}</div></div><div class="card"><div class="k">Cash in LBP</div><div class="v">${L(c.l)}</div></div></div>
+  <div class="grid2">
+  <div class="panel"><h2>${e?'Edit exchange':'Exchange currency in the safe'}</h2>
+    <p class="mute" style="margin-top:0">Use this when you swap money inside the safe, e.g. take 900,000 LBP out and put $10 in (or the other way round). It only changes the cash you hold in each currency — it is not income or an expense.</p>
+    <label>Direction</label><select id="xDir" onchange="updEx()"><option value="L2U" ${e&&e.dir==='U2L'?'':'selected'}>Take LBP out of the safe → put USD in</option><option value="U2L" ${e&&e.dir==='U2L'?'selected':''}>Take USD out of the safe → put LBP in</option></select>
+    <label>Date</label><input type="date" id="xDate" value="${e?e.date:today()}">
+    <div class="row"><div><label>LBP amount</label><input id="xL" inputmode="decimal" placeholder="e.g. 900k" value="${e?e.lbp:''}" oninput="updEx()"></div>
+    <div><label>USD amount ($)</label><input id="xU" inputmode="decimal" placeholder="e.g. 10" value="${e?e.usd:''}" oninput="updEx()"></div></div>
+    <div class="row" style="margin-top:8px"><button class="b sm" onclick="exFill('U')">USD from LBP at rate on file</button><button class="b sm" onclick="exFill('L')">LBP from USD at rate on file</button></div>
+    <label>Note (optional)</label><input id="xN" placeholder="e.g. needed dollars for the electrician" value="${e?esc(e.note||''):''}">
+    <div class="total" id="xTot"></div>
+    <div class="row" style="margin-top:14px"><button class="b p" onclick="saveEx()">${e?'Save changes':'Save exchange'}</button>${e?'<button class="b" onclick="exEdit=null;render()">Cancel</button>':''}</div>
+  </div>
+  <div class="panel"><h2>Exchanges</h2><div class="scroll"><table><tr><th>Date</th><th>What happened</th><th class="n">Rate</th><th>Note</th><th></th></tr>
+    ${list.map(x=>`<tr><td>${x.date}</td><td>${exTxt(x)}</td><td class="n">${fmt(x.lbp/x.usd)}</td><td>${esc(x.note||'')}</td>
+      <td style="white-space:nowrap"><button class="b sm" onclick="exEdit='${x.id}';render();scrollTo(0,0)">Edit</button> <button class="b sm d" onclick="delEx('${x.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan="5" class="mute">No exchanges yet.</td></tr>'}</table></div></div></div>`;
+}
+function exVals(){const l=parseAmt($('#xL').value),u=parseAmt($('#xU').value),dir=$('#xDir').value;return{l,u,dir,r:u>0?l/u:0}}
+function updEx(){
+  if(!$('#xTot'))return;
+  const{l,u,dir,r}=exVals(),old=exEdit?S.exchanges.find(x=>x.id===exEdit):null,c=cash(),o=old?fx(old):{l:0,u:0},n=fx({dir,lbp:l,usd:u});
+  const nl=c.l-o.l+n.l,nu=c.u-o.u+n.u;
+  const what=dir==='L2U'?`Safe: <b>−${fmt(l)} LBP</b> and <b>+${U(u)}</b>`:`Safe: <b>−${U(u)}</b> and <b>+${fmt(l)} LBP</b>`;
+  let warn='';if(nl<0)warn+=`<div style="color:var(--red);font-size:13px">⚠ The safe would have ${L(nl)} — check the amounts.</div>`;if(nu<0)warn+=`<div style="color:var(--red);font-size:13px">⚠ The safe would have ${U(nu)} — check the amounts.</div>`;
+  const onFile=rateFor($('#xDate').value||today());
+  $('#xTot').innerHTML=`${what}${r?`<div class="mute" style="font-size:13px;margin-top:4px">Rate: $1 = ${fmt(r)} LBP (rate on file ${fmt(onFile)})</div>`:''}<div class="mute" style="font-size:13px">Cash after: ${U(nu)} and ${L(nl)}</div>${warn}`;
+}
+function exFill(w){const d=$('#xDate').value||today(),r=rateFor(d),{l,u}=exVals();if(w==='U'){if(!(l>0))return toast('Enter the LBP amount first');$('#xU').value=Math.round(l/r*100)/100}else{if(!(u>0))return toast('Enter the USD amount first');$('#xL').value=Math.round(u*r)}updEx()}
+function saveEx(){
+  const{l,u,dir,r}=exVals();if(!(l>0)||!(u>0))return toast('Enter both the LBP and the USD amount');
+  const rec={dir,date:$('#xDate').value||today(),lbp:l,usd:u,rate:r,note:$('#xN').value.trim()};
+  if(exEdit){const x=S.exchanges.find(x=>x.id===exEdit),b=exTxt(x);Object.assign(x,rec);log('Exchange edited',`${b}  →  ${exTxt(x)} (rate ${fmt(r)})`)}
+  else{const x={id:uid(),...rec};S.exchanges.push(x);log('Exchange added',`${exTxt(x)} (rate ${fmt(r)}, dated ${x.date})${x.note?' – '+x.note:''}`)}
+  exEdit=null;save();render();toast('Exchange saved');
+}
+function delEx(id){const x=S.exchanges.find(x=>x.id===id);if(confirm('Delete this exchange? Cash on hand will go back as if it never happened.')){log('Exchange deleted',exTxt(x)+` (dated ${x.date})`);S.exchanges=S.exchanges.filter(y=>y.id!==id);save();render()}}
 
 /* ---------- projects (special collections for major fixes) ---------- */
 const r2=n=>Math.round(n*100)/100;
